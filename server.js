@@ -233,6 +233,13 @@ app.use('/api/tillslip', tillSlipRoute);
 app.use('/api/bankstatement', bankStatementRoute);
 app.use('/api/idcard', idcardRoute);
 
+app.get('/api/config', (req, res) => {
+    res.json({
+        supabaseUrl: process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
+        supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
+    });
+});
+
 app.get('/api/system-settings', async (req, res) => {
     try {
         const forceRefresh = ['true', '1'].includes((req.query.refresh || '').toString());
