@@ -30,6 +30,12 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   }
 });
 
+if (typeof window !== 'undefined') {
+  window.supabase = supabase;
+}
+
+export default { supabase };
+
 // Global auth state listener - logs out admin if session becomes invalid
 supabase.auth.onAuthStateChange((event, session) => {
   if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESHED' && !session) {

@@ -4,11 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Your Company</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <link rel="stylesheet" href="/shared/theme.css">
-    <script type="module" src="/shared/theme-init.js"></script>
     <script type="module">
-        // --- FIX 1: Correct relative path ----
-        import { supabase } from './Services/supabaseClient.js';
+        try {
+            await import('/shared/theme-init.js?v=20260301');
+        } catch (themeErr) {
+            console.error('Theme init import failed:', themeErr);
+        }
+
+        const supabaseModule = await import('/Services/supabaseClient.js?v=20260301');
+        const supabase = supabaseModule?.supabase || supabaseModule?.default?.supabase || window.supabase;
+
+        if (!supabase) {
+            throw new Error('Supabase client failed to load. Verify /Services/supabaseClient.js on deployment.');
+        }
 
         async function handleRouting() {
             try {
