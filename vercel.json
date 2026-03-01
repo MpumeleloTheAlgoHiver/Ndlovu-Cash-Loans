@@ -3,10 +3,6 @@
   "buildCommand": "npm install --prefix public/admin && npm run build --prefix public/admin",
   "builds": [
     {
-      "src": "public/**/*.{js,mjs,css,svg,ico,png,jpg,jpeg,gif,json,woff,woff2,ttf,eot,map,webp}",
-      "use": "@vercel/static"
-    },
-    {
       "src": "server.js",
       "use": "@vercel/node",
       "config": {
@@ -22,14 +18,6 @@
         "X-Frame-Options": "ALLOWALL"
       },
       "continue": true
-    },
-    {
-      "src": "/(.+\\.(?:js|mjs|css|svg|ico|png|jpg|jpeg|gif|json|woff2?|ttf|eot|map|webp))(\\?.*)?$",
-      "dest": "/public/$1",
-      "check": true
-    },
-    {
-      "handle": "filesystem"
     },
     {
       "src": "/(.*)",
