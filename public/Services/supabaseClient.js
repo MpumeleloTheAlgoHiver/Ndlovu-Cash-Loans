@@ -1,9 +1,8 @@
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/+esm';
 
-// Fetch public config from server — no hardcoded keys
-const config = await fetch('/api/config').then(r => r.json());
-const supabaseUrl = config.supabaseUrl;
-const supabaseAnonKey = config.supabaseAnonKey;
+// Config is injected synchronously by the server as window.__APP_CONFIG__
+const supabaseUrl = window.__APP_CONFIG__?.supabaseUrl;
+const supabaseAnonKey = window.__APP_CONFIG__?.supabaseAnonKey;
 
 if (!supabaseUrl || !supabaseAnonKey) {
     const body = document.querySelector('body');

@@ -233,13 +233,6 @@ app.use('/api/tillslip', tillSlipRoute);
 app.use('/api/bankstatement', bankStatementRoute);
 app.use('/api/idcard', idcardRoute);
 
-app.get('/api/config', (req, res) => {
-    res.json({
-        supabaseUrl: process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL,
-        supabaseAnonKey: process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY
-    });
-});
-
 app.get('/api/system-settings', async (req, res) => {
     try {
         const forceRefresh = ['true', '1'].includes((req.query.refresh || '').toString());
@@ -876,7 +869,35 @@ if (adminBuildExists) {
     app.use('/admin', express.static(adminSourcePath));
 }
 
-// 5c. Serve the REST of the 'public' folder (for login.html, etc.)
+// 5c. HTML config injection — serves any .html file with window.__APP_CONFIG__ injected
+const buildConfigScript = () => {
+    const cfg = {
+        supabaseUrl: process.env.SUPABASE_URL,
+        supabaseAnonKey: process.env.SUPABASE_ANON_KEY
+    };
+    return `<script>window.__APP_CONFIG__=${JSON.stringify(cfg)};</script>`;
+};
+
+const sendHtmlWithConfig = (filePath, res) => {
+    try {
+        const html = fs.readFileSync(filePath, 'utf8');
+        const injected = html.replace('<head>', '<head>\n    ' + buildConfigScript());
+        res.setHeader('Content-Type', 'text/html; charset=UTF-8');
+        return res.send(injected);
+    } catch (err) {
+        return res.status(404).send('Not found');
+    }
+};
+
+app.use((req, res, next) => {
+    const p = req.path;
+    if (!p.endsWith('.html') && p !== '/') return next();
+    const filePath = path.join(__dirname, 'public', p === '/' ? 'index.html' : p);
+    if (fs.existsSync(filePath)) return sendHtmlWithConfig(filePath, res);
+    next();
+});
+
+// 5d. Serve the REST of the 'public' folder (JS, CSS, images, etc.)
 app.use(express.static(path.join(__dirname, 'public')));
 
 
@@ -899,7 +920,7 @@ app.get('/auth.html', (req, res) => {
 const sendAdminPage = (fileName, res) => {
     const filePath = resolveAdminFile(fileName);
     if (fs.existsSync(filePath)) {
-        return res.sendFile(filePath);
+        return sendHtmlWithConfig(filePath, res);
     }
     return res.status(404).send('Admin page not found. Build the admin app or check the path.');
 };

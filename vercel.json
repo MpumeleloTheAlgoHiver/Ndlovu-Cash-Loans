@@ -2,7 +2,7 @@
   "version": 2,
   "builds": [
     {
-      "src": "public/**/*.{js,mjs,css,html,svg,ico,png,jpg,jpeg,gif,json,woff,woff2,ttf,eot,map,webp}",
+      "src": "public/**/*.{js,mjs,css,svg,ico,png,jpg,jpeg,gif,json,woff,woff2,ttf,eot,map,webp}",
       "use": "@vercel/static"
     },
     {
@@ -23,7 +23,7 @@
       "continue": true
     },
     {
-      "src": "/(.+\\.(?:js|mjs|css|html|svg|ico|png|jpg|jpeg|gif|json|woff2?|ttf|eot|map|webp))(\\?.*)?$",
+      "src": "/(.+\\.(?:js|mjs|css|svg|ico|png|jpg|jpeg|gif|json|woff2?|ttf|eot|map|webp))(\\?.*)?$",
       "dest": "/public/$1",
       "check": true
     },
