@@ -809,21 +809,6 @@ app.post('/api/docuseal/webhook', async (req, res) => {
 
 
 // =================================================================
-// --- 4b. SUPABASE CONFIG API (No hardcoded keys in source) ---
-// =================================================================
-// Browser supabaseClient.js files fetch config from this endpoint.
-// Keys come from environment variables (set in Vercel dashboard or .env).
-
-app.get('/api/supabase-config', (req, res) => {
-    res.set('Cache-Control', 'public, max-age=300');
-    res.json({
-        url: process.env.SUPABASE_URL || '',
-        anonKey: process.env.SUPABASE_ANON_KEY || ''
-    });
-});
-
-
-// =================================================================
 // --- 5. ADMIN & PUBLIC STATIC FILE SERVING (THE FIX) ---
 // =================================================================
 
