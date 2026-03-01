@@ -285,6 +285,36 @@ window.showApplyLoan2 = function() {
   window.goToStep(2);
 }
 
+function waitForModuleStylesheet(link, timeoutMs = 3000) {
+  return new Promise((resolve) => {
+    if (!link || link.sheet) {
+      resolve(true);
+      return;
+    }
+
+    let settled = false;
+    const cleanup = () => {
+      link.removeEventListener('load', onLoad);
+      link.removeEventListener('error', onError);
+      clearTimeout(timer);
+    };
+
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(true);
+    };
+
+    const onLoad = () => finish();
+    const onError = () => finish();
+
+    const timer = setTimeout(finish, timeoutMs);
+    link.addEventListener('load', onLoad, { once: true });
+    link.addEventListener('error', onError, { once: true });
+  });
+}
+
 async function loadModule(name) {
   const overlay = document.getElementById("module-container");
   const moduleContent = document.getElementById("module-content");
@@ -293,13 +323,16 @@ async function loadModule(name) {
   overlay.classList.remove("hidden");
   moduleContent.innerHTML = "<p>Loading...</p>";
 
-  if (!document.querySelector(`link[data-module-css="${name}"]`)) {
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = `${cssHref}?t=${Date.now()}`;
-    link.dataset.moduleCss = name;
-    document.head.appendChild(link);
+  let moduleCssLink = document.querySelector(`link[data-module-css="${name}"]`);
+  if (!moduleCssLink) {
+    moduleCssLink = document.createElement("link");
+    moduleCssLink.rel = "stylesheet";
+    moduleCssLink.href = `${cssHref}?t=${Date.now()}`;
+    moduleCssLink.dataset.moduleCss = name;
+    document.head.appendChild(moduleCssLink);
   }
+
+  await waitForModuleStylesheet(moduleCssLink);
 
   try {
     const res = await fetch(`/user-portal/modules/${name}.html?t=${Date.now()}`);
@@ -627,3 +660,4 @@ window.addEventListener('pageLoaded', (event) => {
     }
   }
 });
+

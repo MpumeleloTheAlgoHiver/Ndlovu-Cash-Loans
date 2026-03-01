@@ -809,6 +809,67 @@ app.post('/api/docuseal/webhook', async (req, res) => {
 
 
 // =================================================================
+// --- 4b. DYNAMIC SUPABASE CONFIG (No hardcoded keys in source) ---
+// =================================================================
+// Serve the browser Supabase clients with env vars injected at runtime.
+// This prevents any API keys from being committed to the repository.
+
+function generateSupabaseClientJS(url, key, context) {
+    const sessionLabel = context === 'admin' ? 'Admin session' : 'Session';
+    return [
+        "import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/+esm';",
+        "",
+        `const supabaseUrl = "${url}";`,
+        `const supabaseAnonKey = "${key}";`,
+        "",
+        "if (!supabaseUrl || !supabaseAnonKey || supabaseUrl.includes('YOUR_SUPABASE_URL')) {",
+        "    const body = document.querySelector('body');",
+        "    if (body) {",
+        "        body.innerHTML = '<div style=\"padding:2rem;text-align:center;font-family:sans-serif;background:#fff5f5;color:#c53030;position:fixed;inset:0;z-index:9999\"><h1 style=\"font-size:1.5rem;font-weight:bold\">Configuration Error</h1><p>Supabase credentials are not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY environment variables.</p></div>';",
+        "    }",
+        '    throw new Error("Supabase credentials are missing! Set SUPABASE_URL and SUPABASE_ANON_KEY env vars.");',
+        "}",
+        "",
+        "export const supabase = createClient(supabaseUrl, supabaseAnonKey, {",
+        "  auth: {",
+        "    storage: window.sessionStorage,",
+        "    autoRefreshToken: true,",
+        "    persistSession: true,",
+        "    detectSessionInUrl: true",
+        "  }",
+        "});",
+        "",
+        "supabase.auth.onAuthStateChange((event, session) => {",
+        "  if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {",
+        "    if (!window.location.pathname.includes('/auth/login')) {",
+        `      console.log('${sessionLabel} expired or invalidated - redirecting to login');`,
+        "      window.location.replace('/auth/login.html');",
+        "    }",
+        "  }",
+        "});",
+    ].join('\n');
+}
+
+// User-portal supabase client
+app.get('/Services/supabaseClient.js', (req, res) => {
+    const url = process.env.SUPABASE_URL || '';
+    const key = process.env.SUPABASE_ANON_KEY || '';
+    res.type('application/javascript');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.send(generateSupabaseClientJS(url, key, 'user'));
+});
+
+// Admin supabase client (source-fallback mode, not used when Vite-built)
+app.get('/admin/src/services/supabaseClient.js', (req, res) => {
+    const url = process.env.SUPABASE_URL || '';
+    const key = process.env.SUPABASE_ANON_KEY || '';
+    res.type('application/javascript');
+    res.set('Cache-Control', 'public, max-age=300');
+    res.send(generateSupabaseClientJS(url, key, 'admin'));
+});
+
+
+// =================================================================
 // --- 5. ADMIN & PUBLIC STATIC FILE SERVING (THE FIX) ---
 // =================================================================
 
@@ -948,12 +1009,18 @@ app.get('/admin/settings', (req, res) => {
 
 
 // --- 8. Start Server ---
-app.listen(PORT, () => {
-    const companyNameForLog = cachedSystemSettings?.data?.company_name || DEFAULT_SYSTEM_SETTINGS.company_name;
-    console.log(`🚀 ${companyNameForLog} server running on http://localhost:${PORT}`);
-    console.log(`📁 Serving admin files from: ${adminDistPath}`);
-    console.log(`📁 Serving public files from: ${path.join(__dirname, 'public')}`);
-    
-    // Start notification scheduler
-    startNotificationScheduler();
-});
+// Only listen when running locally (not on Vercel serverless)
+if (!process.env.VERCEL) {
+    app.listen(PORT, () => {
+        const companyNameForLog = cachedSystemSettings?.data?.company_name || DEFAULT_SYSTEM_SETTINGS.company_name;
+        console.log(`🚀 ${companyNameForLog} server running on http://localhost:${PORT}`);
+        console.log(`📁 Serving admin files from: ${adminDistPath}`);
+        console.log(`📁 Serving public files from: ${path.join(__dirname, 'public')}`);
+        
+        // Start notification scheduler
+        startNotificationScheduler();
+    });
+}
+
+// Export for Vercel serverless
+module.exports = app;

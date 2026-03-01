@@ -279,6 +279,80 @@ async function loadSidebar() {
   }
 }
 
+function getCssPageName(pageName) {
+  return pageName.startsWith('apply-loan-') ? 'apply-loan' : pageName;
+}
+
+function waitForStylesheet(link, timeoutMs = 3000) {
+  return new Promise((resolve) => {
+    if (!link) {
+      resolve(false);
+      return;
+    }
+
+    if (link.sheet) {
+      resolve(true);
+      return;
+    }
+
+    let settled = false;
+    const cleanup = () => {
+      link.removeEventListener('load', onLoad);
+      link.removeEventListener('error', onError);
+      clearTimeout(timer);
+    };
+
+    const finish = (loaded) => {
+      if (settled) return;
+      settled = true;
+      cleanup();
+      resolve(loaded);
+    };
+
+    const onLoad = () => finish(true);
+    const onError = () => finish(false);
+
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    link.addEventListener('load', onLoad, { once: true });
+    link.addEventListener('error', onError, { once: true });
+  });
+}
+
+async function ensurePageStylesheet(pageName) {
+  const cssPageName = getCssPageName(pageName);
+  const cssUrl = `/user-portal/pages-css/${cssPageName}.css`;
+  const oldCss = document.getElementById('page-specific-css');
+
+  if (oldCss && oldCss.dataset.cssPage === cssPageName) {
+    return;
+  }
+
+  try {
+    const cssResponse = await fetchWithTimeout(cssUrl, 2000);
+    if (!cssResponse.ok) {
+      throw new Error('stylesheet not found');
+    }
+
+    const link = document.createElement('link');
+    link.id = 'page-specific-css';
+    link.rel = 'stylesheet';
+    link.href = `${cssUrl}?t=${Date.now()}`;
+    link.dataset.cssPage = cssPageName;
+    document.head.appendChild(link);
+
+    await waitForStylesheet(link);
+
+    if (oldCss) {
+      oldCss.remove();
+    }
+  } catch (e) {
+    if (oldCss) {
+      return;
+    }
+    console.warn(`Could not fetch CSS for ${pageName}.`);
+  }
+}
+
 // Load Page Logic
 async function loadPage(pageName) {
   try {
@@ -299,29 +373,7 @@ async function loadPage(pageName) {
     if (!htmlResponse.ok) throw new Error(`Page not found: ${pageName}`);
     const htmlContent = await htmlResponse.text();
 
-    const oldCss = document.getElementById('page-specific-css');
-    if (oldCss) {
-      oldCss.remove();
-    }
-
-    let cssPageName = pageName;
-    if (pageName.startsWith('apply-loan-')) {
-      cssPageName = 'apply-loan';
-    }
-    const cssUrl = `/user-portal/pages-css/${cssPageName}.css`;
-
-    try {
-      const cssResponse = await fetchWithTimeout(cssUrl, 2000);
-      if (cssResponse.ok) {
-        const link = document.createElement('link');
-        link.id = 'page-specific-css';
-        link.rel = 'stylesheet';
-        link.href = `${cssUrl}?t=${Date.now()}`;
-        document.head.appendChild(link);
-      }
-    } catch (e) {
-      console.warn(`Could not fetch CSS for ${pageName}.`);
-    }
+    await ensurePageStylesheet(pageName);
 
     const mainContent = document.getElementById('main-content');
     mainContent.innerHTML = htmlContent;
@@ -1293,3 +1345,4 @@ window.addEventListener('popstate', (e) => {
   const pageName = e.state?.page || 'dashboard';
   loadPage(pageName);
 });
+

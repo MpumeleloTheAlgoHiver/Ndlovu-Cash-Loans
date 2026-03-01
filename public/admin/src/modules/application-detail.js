@@ -660,6 +660,48 @@ window.voidSubmission = async (submissionId) => {
   }
 };
 
+window.activateSureSystemsMandate = async () => {
+  if (!currentApplication?.id) {
+    showFeedback('Application data is not loaded yet.', 'error');
+    return;
+  }
+
+  const button = document.getElementById('btn-activate-suresystems');
+  const originalHTML = button?.innerHTML || '';
+
+  try {
+    if (button) {
+      button.disabled = true;
+      button.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin mr-2"></i> Activating...';
+    }
+
+    const response = await fetch('/api/suresystems/activate-application', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ applicationId: currentApplication.id })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload?.error || payload?.message || 'Failed to activate SureSystems mandate.');
+    }
+
+    const applicationId = payload?.applicationId || currentApplication.id;
+    const contractReference = payload?.contractReference || payload?.data?.contractReference || payload?.mandate?.contractReference || 'N/A';
+    const activatedAt = payload?.activatedAt || payload?.data?.activatedAt || payload?.mandate?.activatedAt || new Date().toISOString();
+
+    showFeedback(`SureSystems mandate activated. Application: ${applicationId} | Contract: ${contractReference} | Activated: ${activatedAt}`, 'success');
+  } catch (error) {
+    console.error('SureSystems activation error:', error);
+    showFeedback(error.message || 'SureSystems activation failed.', 'error');
+  } finally {
+    if (button) {
+      button.disabled = false;
+      button.innerHTML = originalHTML;
+    }
+  }
+};
+
 const initTabs = () => {
   const tabBtns = document.querySelectorAll('.tab-btn');
   const tabPanes = document.querySelectorAll('.tab-pane');
@@ -818,6 +860,9 @@ window.manualStatusChange = async () => {
         if(error) showFeedback(error.message, 'error');
         else {
             showFeedback('Status manually updated.', 'success');
+        if (newStatus === 'OFFER_ACCEPTED') {
+          await window.activateSureSystemsMandate();
+        }
             loadApplicationData();
         }
     }
@@ -1541,8 +1586,10 @@ const renderSidePanel = (app) => {
       else if (status === 'OFFER_ACCEPTED') {
           actionsContainer.innerHTML = `
              <div class="p-3 bg-purple-50 border border-purple-100 rounded-lg mb-3 text-xs text-purple-700"><i class="fa-solid fa-signature mr-1"></i> Client Signed.</div>
+           <button id="btn-activate-suresystems" class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-xl shadow-lg mb-2"><i class="fa-solid fa-link mr-2"></i> Activate SureSystems Mandate</button>
              <button id="btn-approve-contract" class="w-full py-3 bg-green-600 hover:bg-green-700 text-white text-sm font-bold rounded-xl shadow-lg"><i class="fa-solid fa-file-signature mr-2"></i> Approve & Queue Payout</button>
           `;
+          document.getElementById('btn-activate-suresystems')?.addEventListener('click', () => window.activateSureSystemsMandate());
           // Confirmation modal for approval
           document.getElementById('btn-approve-contract').onclick = () => openModal('Approve', 'Mark contract as valid and ready for payout?', approveApplication);
       }

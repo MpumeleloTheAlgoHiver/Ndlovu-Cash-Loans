@@ -8,8 +8,8 @@ node_modules/
 npm-debug.log*
 
 # Env
-#.env
-#.env.*.local
+.env
+.env.*.local
 
 # OS files
 .DS_Store
