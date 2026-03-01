@@ -870,15 +870,7 @@ if (adminBuildExists) {
 }
 
 // 5c. Serve the REST of the 'public' folder (for login.html, etc.)
-// Ensure .js files are served with correct MIME type for ES modules
-const staticOptions = {
-    setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.js')) {
-            res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
-        }
-    }
-};
-app.use(express.static(path.join(__dirname, 'public'), staticOptions));
+app.use(express.static(path.join(__dirname, 'public')));
 
 
 // --- 6. Root Redirect & Auth Helpers ---
@@ -956,18 +948,12 @@ app.get('/admin/settings', (req, res) => {
 
 
 // --- 8. Start Server ---
-// Only listen when running locally (not on Vercel serverless)
-if (!process.env.VERCEL) {
-    app.listen(PORT, () => {
-        const companyNameForLog = cachedSystemSettings?.data?.company_name || DEFAULT_SYSTEM_SETTINGS.company_name;
-        console.log(`🚀 ${companyNameForLog} server running on http://localhost:${PORT}`);
-        console.log(`📁 Serving admin files from: ${adminDistPath}`);
-        console.log(`📁 Serving public files from: ${path.join(__dirname, 'public')}`);
-        
-        // Start notification scheduler
-        startNotificationScheduler();
-    });
-}
-
-// Export for Vercel serverless
-module.exports = app;
+app.listen(PORT, () => {
+    const companyNameForLog = cachedSystemSettings?.data?.company_name || DEFAULT_SYSTEM_SETTINGS.company_name;
+    console.log(`🚀 ${companyNameForLog} server running on http://localhost:${PORT}`);
+    console.log(`📁 Serving admin files from: ${adminDistPath}`);
+    console.log(`📁 Serving public files from: ${path.join(__dirname, 'public')}`);
+    
+    // Start notification scheduler
+    startNotificationScheduler();
+});

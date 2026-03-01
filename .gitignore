@@ -8,12 +8,8 @@ node_modules/
 npm-debug.log*
 
 # Env
-.env
-.env.*.local
-
-# Generated Supabase client files (built by scripts/inject-env.js)
-public/Services/supabaseClient.js
-public/admin/src/services/supabaseClient.js
+#.env
+#.env.*.local
 
 # OS files
 .DS_Store
