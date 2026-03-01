@@ -885,7 +885,15 @@ if (adminBuildExists) {
 }
 
 // 5c. Serve the REST of the 'public' folder (for login.html, etc.)
-app.use(express.static(path.join(__dirname, 'public')));
+// Ensure .js files are served with correct MIME type for ES modules
+const staticOptions = {
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.js')) {
+            res.setHeader('Content-Type', 'application/javascript; charset=UTF-8');
+        }
+    }
+};
+app.use(express.static(path.join(__dirname, 'public'), staticOptions));
 
 
 // --- 6. Root Redirect & Auth Helpers ---

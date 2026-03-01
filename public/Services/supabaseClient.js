@@ -20,6 +20,7 @@ try {
 }
 
 if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Supabase credentials are missing! Check server env vars (SUPABASE_URL, SUPABASE_ANON_KEY).');
   const body = document.querySelector('body');
   if (body) {
     body.innerHTML = `
@@ -29,23 +30,28 @@ if (!supabaseUrl || !supabaseAnonKey) {
       </div>
     `;
   }
-  throw new Error('Supabase credentials are missing! Check server env vars.');
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    storage: window.sessionStorage,
-    autoRefreshToken: true,
-    persistSession: true,
-    detectSessionInUrl: true
-  }
-});
+// Always export — even if credentials failed, so importing modules don't crash.
+// Callers must handle supabase being null.
+export const supabase = (supabaseUrl && supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        storage: window.sessionStorage,
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: true
+      }
+    })
+  : null;
 
-supabase.auth.onAuthStateChange((event, session) => {
-  if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
-    if (!window.location.pathname.includes('/auth/login')) {
-      console.log('Session expired or invalidated - redirecting to login');
-      window.location.replace('/auth/login.html');
+if (supabase) {
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === 'SIGNED_OUT' || (event === 'TOKEN_REFRESHED' && !session)) {
+      if (!window.location.pathname.includes('/auth/login')) {
+        console.log('Session expired or invalidated - redirecting to login');
+        window.location.replace('/auth/login.html');
+      }
     }
-  }
-});
+  });
+}
