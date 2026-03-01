@@ -1,9 +1,6 @@
 # Node
 node_modules/
 
-# Built admin bundle
-/public/admin/dist/
-
 # Logs
 npm-debug.log*
 
