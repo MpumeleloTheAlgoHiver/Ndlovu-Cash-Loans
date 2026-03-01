@@ -14,7 +14,7 @@ if (!supabaseUrl || !supabaseAnonKey) {
             </div>
         `;
     }
-    throw new Error('Supabase credentials could not be loaded from /api/config');
+    throw new Error('Supabase credentials are missing in window.__APP_CONFIG__');
 }
 
 // Create and export the Supabase client with session-only storage

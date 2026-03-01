@@ -890,10 +890,31 @@ const sendHtmlWithConfig = (filePath, res) => {
 };
 
 app.use((req, res, next) => {
-    const p = req.path;
-    if (!p.endsWith('.html') && p !== '/') return next();
-    const filePath = path.join(__dirname, 'public', p === '/' ? 'index.html' : p);
-    if (fs.existsSync(filePath)) return sendHtmlWithConfig(filePath, res);
+    const requestPath = req.path || '/';
+    const normalizedPath = requestPath.replace(/^\/+/, '');
+
+    const candidateFiles = [];
+
+    if (requestPath === '/') {
+        candidateFiles.push(path.join(__dirname, 'public', 'index.html'));
+    }
+
+    if (requestPath.endsWith('.html')) {
+        candidateFiles.push(path.join(__dirname, 'public', normalizedPath));
+    }
+
+    if (requestPath.endsWith('/')) {
+        candidateFiles.push(path.join(__dirname, 'public', normalizedPath, 'index.html'));
+    }
+
+    candidateFiles.push(path.join(__dirname, 'public', normalizedPath, 'index.html'));
+
+    for (const filePath of candidateFiles) {
+        if (filePath && fs.existsSync(filePath)) {
+            return sendHtmlWithConfig(filePath, res);
+        }
+    }
+
     next();
 });
 
