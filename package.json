@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node scripts/inject-env.js && node server.js",
-    "build": "node scripts/inject-env.js && npm install --prefix public/admin && npm run build --prefix public/admin"
+    "build": "npm install --prefix public/admin && npm run build --prefix public/admin"
   },
   "keywords": [],
   "author": "",
