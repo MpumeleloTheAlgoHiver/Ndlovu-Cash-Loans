@@ -1,4 +1,4 @@
-import"./supabaseClient-BXT4n9qe.js";import{i as P}from"./layout-Cb_Oe5x8.js";/* empty css               */import{a as c,b as T}from"./utils-D6Z1B7Jq.js";import{y as C,z as _}from"./dataService-BFNJnUJq.js";import"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/+esm";let b=[],E=[],x="30days",I="",p=1;const u=15;function y(){const a=document.getElementById("main-content");a&&(a.innerHTML=`
+import"./supabaseClient-CMKDwqD5.js";import{i as P}from"./layout-Cn9C-WTG.js";/* empty css               */import{a as c,b as T}from"./utils-D6Z1B7Jq.js";import{y as C,z as _}from"./dataService-DfeYa0Z1.js";import"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/+esm";let b=[],E=[],x="30days",I="",p=1;const u=15;function y(){const a=document.getElementById("main-content");a&&(a.innerHTML=`
     <div id="recovery-dashboard" class="flex flex-col h-full animate-fade-in space-y-6">
       
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
