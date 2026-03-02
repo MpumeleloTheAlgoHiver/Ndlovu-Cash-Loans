@@ -965,30 +965,32 @@ async function renderSystemSettingsTab() {
 
 async function handleLogoUpload(e) {
     const file = e.target.files[0];
-    if(!file) return;
+    if (!file) return;
     try {
-        const fileExt = file.name.split('.').pop();
-        const path = `system/logo_${Date.now()}.${fileExt}`;
-        const { error } = await supabase.storage.from('avatars').upload(path, file);
-        if(error) throw error;
-        const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-        commitThemeDraft({ company_logo_url: data.publicUrl });
-        showToast("Logo uploaded successfully!", "success");
-    } catch(err) { showToast("Upload failed: " + err.message, "error"); }
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', 'logo');
+        const res = await fetch('/api/upload/branding', { method: 'POST', body: formData });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || `Server error ${res.status}`);
+        commitThemeDraft({ company_logo_url: json.url });
+        showToast('Logo uploaded successfully!', 'success');
+    } catch (err) { showToast('Upload failed: ' + err.message, 'error'); }
 }
 
 async function handleWallpaperUpload(e) {
     const file = e.target.files[0];
-    if(!file) return;
+    if (!file) return;
     try {
-        const fileExt = file.name.split('.').pop();
-        const path = `system/wallpaper_${Date.now()}.${fileExt}`;
-        const { error } = await supabase.storage.from('avatars').upload(path, file);
-        if(error) throw error;
-        const { data } = supabase.storage.from('avatars').getPublicUrl(path);
-        commitThemeDraft({ auth_background_url: data.publicUrl });
-        showToast("Wallpaper uploaded successfully!", "success");
-    } catch(err) { showToast("Upload failed: " + err.message, "error"); }
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('type', 'wallpaper');
+        const res = await fetch('/api/upload/branding', { method: 'POST', body: formData });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json.error || `Server error ${res.status}`);
+        commitThemeDraft({ auth_background_url: json.url });
+        showToast('Wallpaper uploaded successfully!', 'success');
+    } catch (err) { showToast('Upload failed: ' + err.message, 'error'); }
 }
 
 // --- Initialization ---

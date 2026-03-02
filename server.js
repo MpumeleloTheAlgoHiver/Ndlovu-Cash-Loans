@@ -251,6 +251,45 @@ app.get('/api/system-settings', async (req, res) => {
     }
 });
 
+// ── Branding Upload (logo / wallpaper) ────────────────────────────────────
+// The browser Supabase client is restricted by RLS on the avatars bucket.
+// Route requests through the server so the service-role key bypasses RLS.
+const multer = require('multer');
+const brandingUpload = multer({
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 8 * 1024 * 1024 } // 8 MB cap
+});
+
+app.post('/api/upload/branding', brandingUpload.single('file'), async (req, res) => {
+    try {
+        if (!req.file) return res.status(400).json({ error: 'No file provided' });
+
+        const { type = 'logo' } = req.body; // 'logo' | 'wallpaper'
+        const ext = (req.file.originalname.split('.').pop() || 'bin').toLowerCase();
+        const filename = type === 'wallpaper'
+            ? `system/wallpaper_${Date.now()}.${ext}`
+            : `system/logo_${Date.now()}.${ext}`;
+
+        const { error: uploadError } = await supabaseService.storage
+            .from('avatars')
+            .upload(filename, req.file.buffer, {
+                contentType: req.file.mimetype,
+                upsert: true
+            });
+
+        if (uploadError) throw uploadError;
+
+        const { data } = supabaseService.storage
+            .from('avatars')
+            .getPublicUrl(filename);
+
+        return res.json({ url: data.publicUrl });
+    } catch (err) {
+        console.error('Branding upload error:', err);
+        return res.status(500).json({ error: err.message || 'Upload failed' });
+    }
+});
+
 // KYC API routes
 app.post('/api/kyc/create-session', async (req, res) => {
     try {
