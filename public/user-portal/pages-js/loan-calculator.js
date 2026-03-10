@@ -67,16 +67,23 @@ window.calculateLoan = function() {
     return;
   }
 
-  // Fee structure matching actual loan config
-  const MONTHLY_FEE = 60; // R60 admin fee per month
-  const INITIATION_FEE_RATE = 0.15; // 15% of loan amount per month
-  
-  // Calculate simple interest: I = P × R × T
-  const totalInterest = principal * annualRate * (termMonths / 12);
-  
-  // Calculate initiation fees (15% of loan amount per month)
-  const initiationFeePerMonth = principal * INITIATION_FEE_RATE;
-  const totalInitiationFees = initiationFeePerMonth * termMonths;
+  const MONTHLY_FEE = 60;
+  const INITIATION_FEE_RATE = 0.15;
+
+  // Interest rate is the full annual rate; initiation is a separate fee
+  const interestAnnualRate = annualRate;
+  const monthlyInterestRate = interestAnnualRate / 12;
+
+  let amortizedMonthly;
+  if (!monthlyInterestRate) {
+    amortizedMonthly = principal / termMonths;
+  } else {
+    const factor = Math.pow(1 + monthlyInterestRate, termMonths);
+    amortizedMonthly = (principal * monthlyInterestRate * factor) / (factor - 1);
+  }
+
+  const totalInterest = Math.max((amortizedMonthly * termMonths) - principal, 0);
+  const totalInitiationFees = principal * INITIATION_FEE_RATE;
   
   // Total admin fees (R60 per month)
   const totalAdminFees = MONTHLY_FEE * termMonths;
@@ -84,7 +91,7 @@ window.calculateLoan = function() {
   // Combined total fees
   const totalFees = totalAdminFees + totalInitiationFees;
   
-  // Total repayment = principal + total interest + total fees
+  // Total repayment = principal + reducing-balance interest + all fees
   const totalRepayment = principal + totalInterest + totalFees;
   
   // Monthly payment = total repayment / number of months
@@ -101,7 +108,7 @@ window.calculateLoan = function() {
   const breakdownInfo = document.getElementById('breakdownInfo');
   if (breakdownInfo) {
     const ratePercent = (annualRate * 100).toFixed(0);
-    breakdownInfo.innerHTML = `<i class="fas fa-info-circle"></i> Includes: Interest (${ratePercent}% annual) + Admin fees (R60/month) + Initiation fees (15%/month)`;
+    breakdownInfo.innerHTML = `<i class="fas fa-info-circle"></i> Includes: Reducing-balance interest (${ratePercent}% annual) + Initiation fee (15%) + Service fees (R60/month)`;
   }
 
   // Store calculation for apply button

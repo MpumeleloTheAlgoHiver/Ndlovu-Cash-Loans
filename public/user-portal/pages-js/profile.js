@@ -1409,9 +1409,18 @@ async function handleFinancialUpdate(e) {
       const affordabilityThreshold = totalIncome * 0.20;
       affordabilityRatio = totalIncome > 0 ? affordabilityThreshold.toFixed(2) : null;
       
-      // Fallback max loan calculation (1 month at 20% APR)
-      const monthlyRate = (0.20 / 12);
-      const fallbackMaxLoan = affordabilityThreshold * ((1 - Math.pow(1 + monthlyRate, -1)) / monthlyRate);
+      // Fallback max loan calculation (fee-inclusive, 1 month @ 30% annual interest + 15% initiation)
+      const totalAnnualRate = 0.30;
+      const initiationRate = 0.15;
+      const monthlyServiceFee = 60;
+      const interestAnnualRate = totalAnnualRate; // Interest is the full annual rate
+      const monthlyRate = interestAnnualRate / 12;
+      const perRandMonthly = monthlyRate > 0
+        ? (monthlyRate * Math.pow(1 + monthlyRate, 1)) / (Math.pow(1 + monthlyRate, 1) - 1)
+        : 1;
+      const principalCoefficient = perRandMonthly + initiationRate;
+      const availableForPrincipal = Math.max(affordabilityThreshold - monthlyServiceFee, 0);
+      const fallbackMaxLoan = principalCoefficient > 0 ? (availableForPrincipal / principalCoefficient) : 0;
       maxLoanAmount = totalIncome > 0 ? fallbackMaxLoan.toFixed(2) : null;
     }
     

@@ -1,5 +1,6 @@
 // Payments Dashboard JavaScript
 import '/user-portal/Services/sessionGuard.js'; // Production auth guard
+import { calculateLoanRepaymentBreakdown } from '/shared/loan-calculations.js';
 
 let activeLoans = [];
 let bankAccounts = [];
@@ -608,7 +609,12 @@ window.closeLoanDetailsModal = function() {
 async function populateLoanDetails(loan) {
   try {
     // Calculate derived values
-    const totalRepayment = loan.totalRepayment || (loan.principal + (loan.principal * loan.interestRate * (loan.termMonths / 12)));
+    const derivedBreakdown = calculateLoanRepaymentBreakdown({
+      principal: loan.principal,
+      annualRate: loan.interestRate,
+      termMonths: loan.termMonths
+    });
+    const totalRepayment = loan.totalRepayment || derivedBreakdown.totalRepayment;
     const totalInterest = totalRepayment - loan.principal;
     const totalPaid = loan.paidToDate ?? (totalRepayment - loan.outstanding);
     const progressPercentage = totalRepayment ? ((totalPaid / totalRepayment) * 100).toFixed(1) : '0';
@@ -769,19 +775,11 @@ function formatDate(dateValue) {
 }
 
 function calculateMonthlyPayment(principal = 0, annualRate = 0, termMonths = 0) {
-  const amount = Number(principal);
-  const months = Number(termMonths);
-  if (!amount || !months || months <= 0) {
-    return 0;
-  }
-
-  const monthlyRate = Number(annualRate) / 12;
-  if (!monthlyRate) {
-    return amount / months;
-  }
-
-  const factor = Math.pow(1 + monthlyRate, months);
-  return (amount * monthlyRate * factor) / (factor - 1);
+  return calculateLoanRepaymentBreakdown({
+    principal,
+    annualRate,
+    termMonths
+  }).monthlyPayment;
 }
 
 function formatNextPaymentDate(dateValue) {

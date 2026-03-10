@@ -1,4 +1,5 @@
 import '/user-portal/Services/sessionGuard.js'; // Production auth guard
+import { calculateLoanRepaymentBreakdown } from '/shared/loan-calculations.js';
 
 const PENDING_LOAN_KEY = 'pendingLoanConfig';
 const SAVED_ACCOUNTS_KEY = 'savedBankAccounts';
@@ -118,14 +119,20 @@ function ensureLoanSummary(config) {
   const amount = Number(config.amount) || 0;
   const period = Number(config.period) || 1;
   const rate = Number(config.interestRate) || 0;
-  const totalInterest = amount * rate * period;
-  const totalRepayment = amount + totalInterest;
-  const monthlyPayment = totalRepayment / period;
+
+  // Use the shared fee-inclusive reducing-balance calculation
+  const breakdown = calculateLoanRepaymentBreakdown({
+    principal: amount,
+    annualRate: rate,
+    termMonths: period
+  });
 
   return {
-    totalInterest,
-    totalRepayment,
-    monthlyPayment
+    totalInterest: breakdown.totalInterest,
+    totalRepayment: breakdown.totalRepayment,
+    monthlyPayment: breakdown.monthlyPayment,
+    totalMonthlyFees: breakdown.totalMonthlyFees,
+    totalInitiationFees: breakdown.totalInitiationFees
   };
 }
 
@@ -465,8 +472,7 @@ async function handleBankFormSubmit() {
       offer_total_admin_fees: Number(summary?.totalMonthlyFees) || 0,
       offer_total_initiation_fees: Number(summary?.totalInitiationFees) || 0,
       offer_monthly_repayment: Number(summary?.monthlyPayment) || 0,
-      offer_total_repayment: Number(summary?.totalRepayment) || 0,
-      offer_credit_life_monthly: Number(summary?.creditLifeMonthly) || 0
+      offer_total_repayment: Number(summary?.totalRepayment) || 0
     };
     
     if (applicationId) {

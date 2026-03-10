@@ -1,5 +1,6 @@
 import { DEFAULT_SYSTEM_SETTINGS } from '../../../shared/theme-runtime.js';
 import { supabase } from './supabaseClient.js';
+import { calculateLoanRepaymentBreakdown, normalizeAnnualRate } from '../../../shared/loan-calculations.js';
 
 export { DEFAULT_SYSTEM_SETTINGS };
 
@@ -323,15 +324,22 @@ export async function updateApplicationStatus(applicationId, newStatus) {
       const term = Number(app.term_months || 1);
       
       const MONTHLY_ADMIN_FEE = 60.00;
-      const INITIATION_FEE_RATE = 0.15;
-      const totalAnnualRate = (historyCount < 3) ? 0.20 : 0.18; 
-      const interestOnlyRate = totalAnnualRate - INITIATION_FEE_RATE;
+      const INITIATION_FEE_RATE = 0.15; // applies to every loan
+      const totalAnnualRate = (historyCount < 3) ? 0.30 : 0.28;
 
-      const totalInterest = principal * interestOnlyRate * (term / 12);
-      const totalInitiation = principal * INITIATION_FEE_RATE;
-      const totalAdminFees = MONTHLY_ADMIN_FEE * term;
-      const totalRepayment = principal + totalInterest + totalInitiation + totalAdminFees;
-      const monthlyPayment = totalRepayment / term;
+      const calc = calculateLoanRepaymentBreakdown({
+        principal,
+        annualRate: totalAnnualRate,
+        termMonths: term,
+        monthlyServiceFee: MONTHLY_ADMIN_FEE,
+        initiationFeeRate: INITIATION_FEE_RATE
+      });
+
+      const totalInterest = calc.totalInterest;
+      const totalInitiation = calc.totalInitiationFees;
+      const totalAdminFees = calc.totalMonthlyFees;
+      const totalRepayment = calc.totalRepayment;
+      const monthlyPayment = calc.monthlyPayment;
 
       // Fallback date if none selected: 30 days from today
       const scheduledDate = app.repayment_start_date || (app.offer_details?.first_payment_date) || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
@@ -736,15 +744,17 @@ export async function syncApplicationToLoans(applicationId) {
     }
 
     const offerDetails = app.offer_details || {};
-    const annualRate = offerDetails.interest_rate ? parseFloat(offerDetails.interest_rate) : 0.20;
-    const monthlyRate = annualRate / 12;
+    const annualRate = normalizeAnnualRate(offerDetails.interest_rate ?? app.offer_interest_rate ?? 0.20);
     const principal = parseFloat(app.amount);
     const termMonths = parseInt(app.term_months);
-    const monthlyServiceFee = 60.00;
-
-    const monthlyInterest = principal * monthlyRate;
-    const principalPart = principal / termMonths;
-    const monthlyPayment = principalPart + monthlyInterest + monthlyServiceFee;
+    const calc = calculateLoanRepaymentBreakdown({
+      principal,
+      annualRate,
+      termMonths,
+      monthlyServiceFee: 60,
+      initiationFeeRate: 0.15 // initiation fee applies to every loan
+    });
+    const monthlyPayment = calc.monthlyPayment;
     const resolvedFirstPayment = resolveFirstPaymentDate(app);
     const nextPaymentDate = resolvedFirstPayment
       ? new Date(resolvedFirstPayment)
@@ -759,6 +769,7 @@ export async function syncApplicationToLoans(applicationId) {
       interest_rate: annualRate,
       term_months: termMonths,
       monthly_payment: monthlyPayment.toFixed(2),
+      total_repayment: calc.totalRepayment,
       status: 'active',
       start_date: new Date().toISOString(),
       next_payment_date: nextPaymentDate.toISOString(),

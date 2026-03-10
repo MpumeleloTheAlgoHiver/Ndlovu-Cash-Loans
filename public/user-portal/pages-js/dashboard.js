@@ -1,5 +1,6 @@
 // Dashboard page JS
 import '/user-portal/Services/sessionGuard.js'; // Production auth guard
+import { calculateLoanRepaymentBreakdown } from '/shared/loan-calculations.js';
 
 // ==========================================
 // DATA FETCHING - Currently using sample data
@@ -115,19 +116,11 @@ function formatDueDate(date) {
 }
 
 function calculateMonthlyPayment(principal = 0, annualRate = 0, termMonths = 0) {
-    const amount = Number(principal);
-    const months = Number(termMonths);
-    if (!amount || !months || months <= 0) {
-        return 0;
-    }
-
-    const monthlyRate = Number(annualRate) / 12;
-    if (!monthlyRate) {
-        return amount / months;
-    }
-
-    const factor = Math.pow(1 + monthlyRate, months);
-    return (amount * monthlyRate * factor) / (factor - 1);
+    return calculateLoanRepaymentBreakdown({
+        principal,
+        annualRate,
+        termMonths
+    }).monthlyPayment;
 }
 
 function updateNextPaymentDisplay(amount, dueDate) {
@@ -203,7 +196,7 @@ function populateActiveLoans() {
                         <div class="loan-detail-value">${loan.dueDate || 'TBD'}</div>
                     </div>
                     <div class="loan-detail">
-                        <div class="loan-detail-label">Interest Rate</div>
+                        <div class="loan-detail-label">Annual Rate</div>
                         <div class="loan-detail-value">${loan.interestRate || 'TBD'}</div>
                     </div>
                 </div>
@@ -1216,7 +1209,7 @@ function buildLoansModalContent(loans) {
                                 <div class="value">${loan.dueDate || 'TBD'}</div>
                             </div>
                             <div>
-                                <div class="label">Interest Rate</div>
+                                <div class="label">Annual Rate</div>
                                 <div class="value">${loan.interestRate || 'TBD'}</div>
                             </div>
                         </div>

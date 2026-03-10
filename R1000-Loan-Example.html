@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ndlovu Cash Loans — R1,000 Industry Comparison (2 &amp; 6 Months)</title>
+  <style>
+    @page { size: A4; margin: 16mm 14mm 16mm 14mm; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Segoe UI', Arial, sans-serif; color: #1a1a2e; background: #fff; line-height: 1.5; font-size: 11pt; padding: 36px 44px; }
+    @media print { body { padding: 0; } .no-print { display: none !important; } .page-break { page-break-before: always; } }
+
+    .doc-header { display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1a1a2e; padding-bottom: 10px; margin-bottom: 22px; }
+    .doc-header h1 { font-size: 17pt; font-weight: 800; color: #1a1a2e; }
+    .doc-header .subtitle { font-size: 9.5pt; color: #555; margin-top: 2px; }
+    .doc-header .brand { font-size: 12pt; font-weight: 700; color: #e67e22; text-align: right; }
+    .doc-header .brand small { display: block; font-size: 8pt; font-weight: 400; color: #888; }
+
+    h2 { font-size: 13pt; font-weight: 700; color: #1a1a2e; margin: 22px 0 8px 0; padding-bottom: 3px; border-bottom: 1.5px solid #e0e0e0; }
+    h3 { font-size: 11.5pt; font-weight: 700; color: #2c3e50; margin: 14px 0 6px 0; }
+
+    .formula-box { background: #f8f9fa; border: 1px solid #dee2e6; border-left: 4px solid #e67e22; border-radius: 6px; padding: 12px 16px; margin: 10px 0 14px 0; font-family: 'Consolas', monospace; font-size: 9.5pt; line-height: 1.65; color: #333; }
+    .formula-box strong { color: #1a1a2e; }
+
+    table { width: 100%; border-collapse: collapse; margin: 8px 0 16px 0; font-size: 10pt; }
+    thead th { background: #1a1a2e; color: #fff; font-weight: 700; text-align: left; padding: 7px 10px; font-size: 9pt; text-transform: uppercase; letter-spacing: 0.4px; }
+    tbody td { padding: 6px 10px; border-bottom: 1px solid #e8e8e8; vertical-align: top; }
+    tbody tr:nth-child(even) { background: #fafafa; }
+    tbody tr.highlight { background: #fff8e1; font-weight: 700; }
+    tbody tr.total-row { background: #e8f5e9; font-weight: 800; border-top: 2px solid #1a1a2e; }
+    tbody tr.total-row td { padding: 8px 10px; font-size: 10.5pt; }
+    td.amount { text-align: right; font-family: 'Consolas', monospace; }
+    td.calc { color: #666; font-size: 9pt; font-family: 'Consolas', monospace; }
+    tbody tr.ndlovu-row { background: #e3f2fd !important; }
+    tbody tr.worst td { color: #c62828; }
+    tbody tr.best td { color: #1b5e20; }
+
+    .callout { background: #eef6ff; border: 1px solid #b8d4f0; border-radius: 6px; padding: 10px 14px; margin: 12px 0; font-size: 9.5pt; color: #1a3a5c; }
+    .callout strong { color: #0d47a1; }
+    .callout.green { background: #e8f5e9; border-color: #a5d6a7; color: #1b5e20; }
+    .callout.green strong { color: #2e7d32; }
+    .callout.red { background: #fce4ec; border-color: #ef9a9a; color: #b71c1c; }
+    .callout.red strong { color: #c62828; }
+
+    .tag { display: inline-block; font-size: 7.5pt; font-weight: 700; padding: 2px 7px; border-radius: 4px; vertical-align: middle; margin-left: 4px; text-transform: uppercase; letter-spacing: 0.4px; color: #fff; }
+    .tag.orange { background: #e67e22; }
+    .tag.green { background: #388e3c; }
+    .tag.red { background: #c62828; }
+    .tag.gray { background: #607d8b; }
+
+    .verdict-box { border: 2px solid #1a1a2e; border-radius: 10px; padding: 16px 20px; margin: 16px 0; }
+    .verdict-box h3 { margin-top: 0; font-size: 12pt; }
+    .verdict-box ul { margin: 8px 0 0 18px; }
+    .verdict-box li { margin: 4px 0; font-size: 10pt; }
+
+    p { margin: 5px 0; }
+    ul { margin: 5px 0 10px 20px; }
+    li { margin: 3px 0; }
+    .footer { margin-top: 30px; padding-top: 10px; border-top: 1px solid #ddd; font-size: 8pt; color: #999; text-align: center; }
+    .print-btn { display: inline-block; background: #1a1a2e; color: #fff; border: none; padding: 11px 28px; font-size: 11pt; font-weight: 700; border-radius: 8px; cursor: pointer; margin: 20px 0; }
+    .print-btn:hover { background: #e67e22; }
+
+    .comparison-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin: 14px 0; }
+    .comparison-card { border: 1px solid #ddd; border-radius: 8px; padding: 14px 16px; }
+    .comparison-card.highlight { border: 2px solid #e67e22; background: #fffbf5; }
+    .comparison-card h4 { font-size: 10.5pt; font-weight: 700; margin-bottom: 8px; }
+    .comparison-card .big-number { font-size: 20pt; font-weight: 900; font-family: 'Consolas', monospace; }
+
+    .sidebar-mock { background: #1e1e2f; color: #e0e0e0; border-radius: 10px; padding: 18px 22px; margin: 10px 0; font-family: 'Consolas', monospace; font-size: 9.5pt; line-height: 2; }
+    .sidebar-mock .title { font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; }
+    .sidebar-mock .row { display: flex; justify-content: space-between; }
+    .sidebar-mock .row .label { color: #999; }
+    .sidebar-mock .row .value { color: #fff; font-weight: 700; }
+    .sidebar-mock .divider { border-top: 1px solid #444; margin: 6px 0; padding-top: 6px; }
+    .sidebar-mock .total-label { color: #999; font-weight: 800; text-transform: uppercase; font-size: 8.5pt; letter-spacing: 1px; }
+    .sidebar-mock .total-value { color: #4caf50; font-weight: 900; font-size: 12pt; }
+    .sidebar-mock .monthly-value { color: #e67e22; font-weight: 700; font-size: 11pt; }
+  </style>
+</head>
+<body>
+
+<div class="no-print" style="text-align:center;">
+  <button class="print-btn" onclick="window.print()">Print / Save as PDF (Ctrl + P)</button>
+</div>
+
+<div class="doc-header">
+  <div>
+    <h1>R1,000 Loan &mdash; Industry Comparison</h1>
+    <div class="subtitle">Updated Model: 30% p.a. interest (separate from initiation) | Initiation on every loan | No credit life</div>
+  </div>
+  <div class="brand">
+    Ndlovu Cash Loans
+    <small>March 2026</small>
+  </div>
+</div>
+
+<!-- ===== MODEL SUMMARY ===== -->
+<h2>Updated Fee Model</h2>
+
+<div class="formula-box">
+  <strong>KEY CHANGE:</strong> Interest rate and initiation fee are now <strong>separate</strong>.<br>
+  Previously: 20% declared rate = 5% interest + 15% initiation (interest was too low)<br>
+  Now: 30% declared rate = 30% interest + 15% initiation <em>on top</em><br><br>
+  <strong>NEW CLIENT (&lt; 3 completed loans):</strong><br>
+  &nbsp;&nbsp;Interest: <strong>30% p.a.</strong> reducing-balance<br>
+  &nbsp;&nbsp;Initiation: <strong>15%</strong> of principal (every loan)<br>
+  &nbsp;&nbsp;Service Fee: R60/month<br>
+  <br>
+  <strong>RETURNING CLIENT (3+ completed loans):</strong><br>
+  &nbsp;&nbsp;Interest: <strong>28% p.a.</strong> reducing-balance<br>
+  &nbsp;&nbsp;Initiation: <strong>15%</strong> of principal (every loan)<br>
+  &nbsp;&nbsp;Service Fee: R60/month<br>
+  <br>
+  <strong>Credit Life:</strong> Removed
+</div>
+
+<!-- ===== 2-MONTH EXAMPLES ===== -->
+<h2>R1,000 / 2 Months &mdash; New Client (30% p.a.) <span class="tag orange">Short Term</span></h2>
+
+<table>
+  <thead><tr><th>Component</th><th>Calculation</th><th style="text-align:right;">Amount</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Principal</strong></td><td class="calc">&mdash;</td><td class="amount">R 1,000.00</td></tr>
+    <tr><td>Interest (30% p.a., 2 months)</td><td class="calc">r = 0.30/12 = 0.025 &rarr; PMT = 518.83 &rarr; (518.83&times;2)&minus;1000</td><td class="amount">R 37.66</td></tr>
+    <tr><td>Initiation Fee (15%)</td><td class="calc">1,000 &times; 0.15</td><td class="amount">R 150.00</td></tr>
+    <tr><td>Service Fee (R60 &times; 2)</td><td class="calc">60 &times; 2</td><td class="amount">R 120.00</td></tr>
+    <tr class="total-row"><td>Total Repayment</td><td></td><td class="amount">R 1,307.66</td></tr>
+    <tr class="highlight"><td><strong>Monthly Payment</strong></td><td class="calc">1,307.66 &divide; 2</td><td class="amount"><strong>R 653.83</strong></td></tr>
+    <tr><td><em>Total Cost of Credit</em></td><td class="calc">307.66 / 1,000</td><td class="amount"><em>30.8%</em></td></tr>
+  </tbody>
+</table>
+
+<h3>2-Month Comparison Table</h3>
+
+<table>
+  <thead>
+    <tr><th>Lender</th><th style="text-align:center;">Rate p.a.</th><th style="text-align:right;">Interest</th><th style="text-align:right;">Initiation</th><th style="text-align:right;">Service</th><th style="text-align:right;">Total</th><th style="text-align:right;">Monthly</th><th style="text-align:right;">Cost %</th></tr>
+  </thead>
+  <tbody>
+    <tr class="ndlovu-row">
+      <td><strong>Ndlovu (new)</strong> <span class="tag orange">You</span></td>
+      <td style="text-align:center;">30%</td>
+      <td class="amount">R 37.66</td>
+      <td class="amount">R 150.00</td>
+      <td class="amount">R 120.00</td>
+      <td class="amount"><strong>R 1,307.66</strong></td>
+      <td class="amount">R 653.83</td>
+      <td class="amount">30.8%</td>
+    </tr>
+    <tr class="ndlovu-row best">
+      <td><strong>Ndlovu (returning)</strong> <span class="tag green">Best</span></td>
+      <td style="text-align:center;">28%</td>
+      <td class="amount">R 35.18</td>
+      <td class="amount">R 150.00</td>
+      <td class="amount">R 120.00</td>
+      <td class="amount"><strong>R 1,305.18</strong></td>
+      <td class="amount">R 652.59</td>
+      <td class="amount">30.5%</td>
+    </tr>
+    <tr>
+      <td>Wonga SA <span class="tag gray">Typical</span></td>
+      <td style="text-align:center;">60%</td>
+      <td class="amount">R 75.61</td>
+      <td class="amount">R 165.00</td>
+      <td class="amount">R 118.00</td>
+      <td class="amount">R 1,358.61</td>
+      <td class="amount">R 679.31</td>
+      <td class="amount">35.9%</td>
+    </tr>
+    <tr>
+      <td>Boodle / Lime24 <span class="tag gray">Typical</span></td>
+      <td style="text-align:center;">60%</td>
+      <td class="amount">R 75.61</td>
+      <td class="amount">R 172.50</td>
+      <td class="amount">R 120.00</td>
+      <td class="amount">R 1,368.11</td>
+      <td class="amount">R 684.06</td>
+      <td class="amount">36.8%</td>
+    </tr>
+    <tr class="worst">
+      <td><strong>NCA Maximum</strong> <span class="tag red">Worst</span></td>
+      <td style="text-align:center;">60%</td>
+      <td class="amount">R 75.61</td>
+      <td class="amount">R 165.00</td>
+      <td class="amount">R 120.00</td>
+      <td class="amount">R 1,360.61</td>
+      <td class="amount">R 680.31</td>
+      <td class="amount">36.1%</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="comparison-grid">
+  <div class="comparison-card highlight">
+    <h4>Savings vs Industry (2 months)</h4>
+    <div class="big-number" style="color: #2e7d32;">R 52.95 cheaper</div>
+    <p style="font-size:9pt; color:#666; margin-top:6px;">New client saves R52.95 (3.9%) vs NCA max on a 2-month loan.</p>
+  </div>
+  <div class="comparison-card">
+    <h4>Your Revenue (2 months)</h4>
+    <div class="big-number" style="color: #1565c0;">R 187.66</div>
+    <p style="font-size:9pt; color:#666; margin-top:6px;">Interest R37.66 + Initiation R150 per R1,000 lent. Industry earns R240.61.</p>
+  </div>
+</div>
+
+<!-- ===== PAGE BREAK ===== -->
+<div class="page-break"></div>
+
+<!-- ===== 6-MONTH EXAMPLES ===== -->
+<h2>R1,000 / 6 Months &mdash; New Client (30% p.a.) <span class="tag orange">Medium Term</span></h2>
+
+<table>
+  <thead><tr><th>Component</th><th>Calculation</th><th style="text-align:right;">Amount</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Principal</strong></td><td class="calc">&mdash;</td><td class="amount">R 1,000.00</td></tr>
+    <tr><td>Interest (30% p.a., 6 months)</td><td class="calc">r = 0.025 &rarr; PMT = 181.55 &rarr; (181.55&times;6)&minus;1000</td><td class="amount">R 89.31</td></tr>
+    <tr><td>Initiation Fee (15%)</td><td class="calc">1,000 &times; 0.15</td><td class="amount">R 150.00</td></tr>
+    <tr><td>Service Fee (R60 &times; 6)</td><td class="calc">60 &times; 6</td><td class="amount">R 360.00</td></tr>
+    <tr class="total-row"><td>Total Repayment</td><td></td><td class="amount">R 1,599.31</td></tr>
+    <tr class="highlight"><td><strong>Monthly Payment</strong></td><td class="calc">1,599.31 &divide; 6</td><td class="amount"><strong>R 266.55</strong></td></tr>
+    <tr><td><em>Total Cost of Credit</em></td><td class="calc">599.31 / 1,000</td><td class="amount"><em>59.9%</em></td></tr>
+  </tbody>
+</table>
+
+<h2>R1,000 / 6 Months &mdash; Returning Client (28% p.a.) <span class="tag green">Loyalty Rate</span></h2>
+
+<table>
+  <thead><tr><th>Component</th><th>Calculation</th><th style="text-align:right;">Amount</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Principal</strong></td><td class="calc">&mdash;</td><td class="amount">R 1,000.00</td></tr>
+    <tr><td>Interest (28% p.a., 6 months)</td><td class="calc">r = 0.02333 &rarr; PMT = 180.52 &rarr; (180.52&times;6)&minus;1000</td><td class="amount">R 83.15</td></tr>
+    <tr><td>Initiation Fee (15%)</td><td class="calc">1,000 &times; 0.15</td><td class="amount">R 150.00</td></tr>
+    <tr><td>Service Fee (R60 &times; 6)</td><td class="calc">60 &times; 6</td><td class="amount">R 360.00</td></tr>
+    <tr class="total-row"><td>Total Repayment</td><td></td><td class="amount">R 1,593.15</td></tr>
+    <tr class="highlight"><td><strong>Monthly Payment</strong></td><td class="calc">1,593.15 &divide; 6</td><td class="amount"><strong>R 265.52</strong></td></tr>
+    <tr><td><em>Total Cost of Credit</em></td><td class="calc">593.15 / 1,000</td><td class="amount"><em>59.3%</em></td></tr>
+  </tbody>
+</table>
+
+<!-- ===== 6-MONTH COMPARISON ===== -->
+<h3>6-Month Comparison Table &mdash; The Big Picture</h3>
+
+<table>
+  <thead>
+    <tr><th>Lender</th><th style="text-align:center;">Rate p.a.</th><th style="text-align:right;">Interest</th><th style="text-align:right;">Initiation</th><th style="text-align:right;">Service</th><th style="text-align:right;">Total</th><th style="text-align:right;">Monthly</th><th style="text-align:right;">Cost %</th></tr>
+  </thead>
+  <tbody>
+    <tr class="ndlovu-row">
+      <td><strong>Ndlovu (new)</strong> <span class="tag orange">You</span></td>
+      <td style="text-align:center;">30%</td>
+      <td class="amount">R 89.31</td>
+      <td class="amount">R 150.00</td>
+      <td class="amount">R 360.00</td>
+      <td class="amount"><strong>R 1,599.31</strong></td>
+      <td class="amount">R 266.55</td>
+      <td class="amount">59.9%</td>
+    </tr>
+    <tr class="ndlovu-row best">
+      <td><strong>Ndlovu (returning)</strong> <span class="tag green">Best</span></td>
+      <td style="text-align:center;">28%</td>
+      <td class="amount">R 83.15</td>
+      <td class="amount">R 150.00</td>
+      <td class="amount">R 360.00</td>
+      <td class="amount"><strong>R 1,593.15</strong></td>
+      <td class="amount">R 265.52</td>
+      <td class="amount">59.3%</td>
+    </tr>
+    <tr>
+      <td>Wonga SA <span class="tag gray">Typical</span></td>
+      <td style="text-align:center;">60%</td>
+      <td class="amount">R 182.10</td>
+      <td class="amount">R 165.00</td>
+      <td class="amount">R 354.00</td>
+      <td class="amount">R 1,701.10</td>
+      <td class="amount">R 283.52</td>
+      <td class="amount">70.1%</td>
+    </tr>
+    <tr>
+      <td>Boodle / Lime24 <span class="tag gray">Typical</span></td>
+      <td style="text-align:center;">60%</td>
+      <td class="amount">R 182.10</td>
+      <td class="amount">R 172.50</td>
+      <td class="amount">R 360.00</td>
+      <td class="amount">R 1,714.60</td>
+      <td class="amount">R 285.77</td>
+      <td class="amount">71.5%</td>
+    </tr>
+    <tr class="worst">
+      <td><strong>NCA Maximum</strong> <span class="tag red">Worst</span></td>
+      <td style="text-align:center;">60%</td>
+      <td class="amount">R 182.10</td>
+      <td class="amount">R 165.00</td>
+      <td class="amount">R 360.00</td>
+      <td class="amount">R 1,707.10</td>
+      <td class="amount">R 284.52</td>
+      <td class="amount">70.7%</td>
+    </tr>
+  </tbody>
+</table>
+
+<div class="comparison-grid">
+  <div class="comparison-card highlight">
+    <h4>Savings vs Industry (6 months)</h4>
+    <div class="big-number" style="color: #2e7d32;">R 107.79 cheaper</div>
+    <p style="font-size:9pt; color:#666; margin-top:6px;">New client saves R107.79 (6.3%) vs NCA max. Returning saves R113.95 (6.7%).</p>
+  </div>
+  <div class="comparison-card">
+    <h4>Your Revenue (6 months)</h4>
+    <div class="big-number" style="color: #1565c0;">R 239.31</div>
+    <p style="font-size:9pt; color:#666; margin-top:6px;">Interest R89.31 + Initiation R150 per R1,000 lent. Industry earns R347.10.</p>
+  </div>
+</div>
+
+<!-- ===== PAGE BREAK ===== -->
+<div class="page-break"></div>
+
+<!-- ===== REVENUE & SUSTAINABILITY ===== -->
+<h2>Revenue &amp; Sustainability Analysis</h2>
+
+<h3>Revenue per R1,000 Lent</h3>
+
+<table>
+  <thead>
+    <tr><th>Lender</th><th style="text-align:center;">Term</th><th style="text-align:right;">Interest</th><th style="text-align:right;">Initiation</th><th style="text-align:right;">Total Revenue*</th><th style="text-align:right;">Loans to Cover 1 Default</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Industry (60% p.a.)</td>
+      <td style="text-align:center;">2 months</td>
+      <td class="amount">R 75.61</td>
+      <td class="amount">R 165.00</td>
+      <td class="amount"><strong>R 240.61</strong></td>
+      <td class="amount">4.2 loans</td>
+    </tr>
+    <tr class="ndlovu-row">
+      <td><strong>Ndlovu (30%)</strong></td>
+      <td style="text-align:center;">2 months</td>
+      <td class="amount">R 37.66</td>
+      <td class="amount">R 150.00</td>
+      <td class="amount"><strong>R 187.66</strong></td>
+      <td class="amount">5.3 loans</td>
+    </tr>
+    <tr style="border-top:2px solid #ddd;">
+      <td>Industry (60% p.a.)</td>
+      <td style="text-align:center;">6 months</td>
+      <td class="amount">R 182.10</td>
+      <td class="amount">R 165.00</td>
+      <td class="amount"><strong>R 347.10</strong></td>
+      <td class="amount">2.9 loans</td>
+    </tr>
+    <tr class="ndlovu-row">
+      <td><strong>Ndlovu (30%)</strong></td>
+      <td style="text-align:center;">6 months</td>
+      <td class="amount">R 89.31</td>
+      <td class="amount">R 150.00</td>
+      <td class="amount"><strong>R 239.31</strong></td>
+      <td class="amount">4.2 loans</td>
+    </tr>
+  </tbody>
+</table>
+<p style="font-size: 8.5pt; color: #888;">*Revenue = Interest + Initiation. Service fee (R60/mo) covers operating costs. "Loans to Cover 1 Default" = R1,000 &divide; Revenue.</p>
+
+<div class="callout green">
+  <strong>This is a sustainable model.</strong> On 2-month loans, you need 5.3 successful loans to cover one R1,000 default (industry needs 4.2). On 6-month loans, you need 4.2 &mdash; identical to industry. The initiation fee on every loan is the key: it provides a guaranteed R150 revenue floor per R1,000 regardless of term length.
+</div>
+
+<!-- ===== WHAT CHANGED ===== -->
+<h3>Before vs After &mdash; What Changed</h3>
+
+<table>
+  <thead>
+    <tr><th></th><th style="text-align:center;">Old Model</th><th style="text-align:center;">New Model</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Annual Rate (declared)</td><td style="text-align:center;">20% / 18%</td><td style="text-align:center;"><strong>30% / 28%</strong></td></tr>
+    <tr><td>Interest Rate (actual for PMT)</td><td style="text-align:center;">5% / 3% (rate minus initiation)</td><td style="text-align:center;"><strong>30% / 28% (full rate)</strong></td></tr>
+    <tr><td>Initiation Fee</td><td style="text-align:center;">15% first loan only</td><td style="text-align:center;"><strong>15% every loan</strong></td></tr>
+    <tr><td>Credit Life</td><td style="text-align:center;">Removed</td><td style="text-align:center;">Removed</td></tr>
+    <tr><td>Interest on R1k/2mo</td><td style="text-align:center;">R 2.09</td><td style="text-align:center;"><strong>R 37.66</strong></td></tr>
+    <tr><td>Revenue on R1k/2mo</td><td style="text-align:center;">R 152.09 (first) / R 15.28 (ret.)</td><td style="text-align:center;"><strong>R 187.66 / R 185.18</strong></td></tr>
+    <tr><td>Revenue on R1k/6mo</td><td style="text-align:center;">~R 155 (first) / ~R 83 (ret.)</td><td style="text-align:center;"><strong>R 239.31 / R 233.15</strong></td></tr>
+  </tbody>
+</table>
+
+<!-- ===== PAGE BREAK ===== -->
+<div class="page-break"></div>
+
+<!-- ===== HONEST VERDICT ===== -->
+<h2>Honest Verdict</h2>
+
+<div class="verdict-box">
+  <h3>For Borrowers &mdash; Still cheaper than industry</h3>
+  <ul>
+    <li><strong>2 months:</strong> Borrower pays R1,308 vs R1,361 industry max. <strong>3.9% cheaper.</strong></li>
+    <li><strong>6 months:</strong> Borrower pays R1,599 vs R1,707 industry max. <strong>6.3% cheaper.</strong></li>
+    <li>Longer terms create bigger savings because the interest rate gap (30% vs 60%) has more months to compound.</li>
+    <li>No credit life, transparent fees, and a lower initiation (R150 vs R165).</li>
+  </ul>
+</div>
+
+<div class="verdict-box" style="border-color: #2e7d32;">
+  <h3>For the Business &mdash; Now viable</h3>
+  <ul>
+    <li><strong>Revenue per R1k/2mo:</strong> R188 (was R15&ndash;152). You earn 78% of industry revenue.</li>
+    <li><strong>Revenue per R1k/6mo:</strong> R239 (was R83&ndash;155). You earn 69% of industry revenue.</li>
+    <li><strong>Default buffer:</strong> 5.3 loans to cover a 2-month default, 4.2 for 6-month. Industry is 4.2 and 2.9 respectively. Your buffer is slightly thinner but manageable with good credit checks.</li>
+    <li><strong>Initiation on every loan</strong> is the anchor &mdash; it guarantees R150 per R1,000 regardless of term or whether the borrower is new or returning.</li>
+    <li>Returning borrowers no longer earn you only R15 per R1,000. Now it's R185&ndash;233 depending on term.</li>
+  </ul>
+</div>
+
+<div class="callout">
+  <strong>My take:</strong> This model hits the sweet spot. Borrowers still save 4&ndash;7% vs industry, but you now earn real revenue. The old model was great for borrowers but unsustainable for you (R15 per R1k returning loan). The new model makes the interest rate do real work while keeping you comfortably below NCA maximums. The 30% p.a. rate produces exactly half the interest of the industry-standard 60%, which is a great marketing message: <em>"Pay half the interest of the big lenders."</em>
+</div>
+
+<!-- ===== ADMIN MOCKUPS ===== -->
+<h2>Admin View &mdash; What the Sidebar Looks Like</h2>
+
+<div class="comparison-grid">
+  <div>
+    <h3>R1,000 / 2 Months</h3>
+    <div class="sidebar-mock">
+      <div class="title" style="color: #e67e22;">New Client &mdash; R1,000 / 2 Months</div>
+      <div class="row"><span class="label">Interest (30.0% p.a.)</span><span class="value">R 37.66</span></div>
+      <div class="row"><span class="label">Initiation Fee (15%)</span><span class="value">R 150.00</span></div>
+      <div class="row"><span class="label">Service Fee (R60 &times; 2)</span><span class="value">R 120.00</span></div>
+      <div class="divider">
+        <div class="row"><span class="total-label">Total Repayable</span><span class="total-value">R 1,307.66</span></div>
+      </div>
+      <div class="row"><span class="label" style="font-size:9pt;">Monthly Payment</span><span class="monthly-value">R 653.83</span></div>
+    </div>
+  </div>
+  <div>
+    <h3>R1,000 / 6 Months</h3>
+    <div class="sidebar-mock">
+      <div class="title" style="color: #4caf50;">Returning Client &mdash; R1,000 / 6 Months</div>
+      <div class="row"><span class="label">Interest (28.0% p.a.)</span><span class="value">R 83.15</span></div>
+      <div class="row"><span class="label">Initiation Fee (15%)</span><span class="value">R 150.00</span></div>
+      <div class="row"><span class="label">Service Fee (R60 &times; 6)</span><span class="value">R 360.00</span></div>
+      <div class="divider">
+        <div class="row"><span class="total-label">Total Repayable</span><span class="total-value">R 1,593.15</span></div>
+      </div>
+      <div class="row"><span class="label" style="font-size:9pt;">Monthly Payment</span><span class="monthly-value">R 265.52</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== FULL REFERENCE ===== -->
+<h2>Quick Reference &mdash; All Scenarios</h2>
+
+<table>
+  <thead>
+    <tr><th>Scenario</th><th style="text-align:center;">Rate</th><th style="text-align:right;">Interest</th><th style="text-align:right;">Init.</th><th style="text-align:right;">Service</th><th style="text-align:right;">Total</th><th style="text-align:right;">Monthly</th><th style="text-align:right;">Revenue</th></tr>
+  </thead>
+  <tbody>
+    <tr class="ndlovu-row"><td>Ndlovu new / 2mo</td><td style="text-align:center;">30%</td><td class="amount">R 37.66</td><td class="amount">R 150</td><td class="amount">R 120</td><td class="amount"><strong>R 1,307.66</strong></td><td class="amount">R 653.83</td><td class="amount">R 187.66</td></tr>
+    <tr class="ndlovu-row"><td>Ndlovu ret. / 2mo</td><td style="text-align:center;">28%</td><td class="amount">R 35.18</td><td class="amount">R 150</td><td class="amount">R 120</td><td class="amount"><strong>R 1,305.18</strong></td><td class="amount">R 652.59</td><td class="amount">R 185.18</td></tr>
+    <tr class="ndlovu-row"><td>Ndlovu new / 6mo</td><td style="text-align:center;">30%</td><td class="amount">R 89.31</td><td class="amount">R 150</td><td class="amount">R 360</td><td class="amount"><strong>R 1,599.31</strong></td><td class="amount">R 266.55</td><td class="amount">R 239.31</td></tr>
+    <tr class="ndlovu-row"><td>Ndlovu ret. / 6mo</td><td style="text-align:center;">28%</td><td class="amount">R 83.15</td><td class="amount">R 150</td><td class="amount">R 360</td><td class="amount"><strong>R 1,593.15</strong></td><td class="amount">R 265.52</td><td class="amount">R 233.15</td></tr>
+    <tr><td>Industry / 2mo</td><td style="text-align:center;">60%</td><td class="amount">R 75.61</td><td class="amount">R 165</td><td class="amount">R 120</td><td class="amount">R 1,360.61</td><td class="amount">R 680.31</td><td class="amount">R 240.61</td></tr>
+    <tr><td>Industry / 6mo</td><td style="text-align:center;">60%</td><td class="amount">R 182.10</td><td class="amount">R 165</td><td class="amount">R 360</td><td class="amount">R 1,707.10</td><td class="amount">R 284.52</td><td class="amount">R 347.10</td></tr>
+  </tbody>
+</table>
+
+<div class="footer">
+  Ndlovu Cash Loans &mdash; R1,000 Industry Comparison (2 &amp; 6 Month) &nbsp;|&nbsp; March 2026 &nbsp;|&nbsp; Source: NCA Schedule 1 rates, public lender rate sheets
+</div>
+
+<div class="no-print" style="text-align:center; margin-top:14px;">
+  <button class="print-btn" onclick="window.print()">Print / Save as PDF (Ctrl + P)</button>
+</div>
+
+</body>
+</html>

@@ -33,13 +33,76 @@ let loanConfig = {
   amount: 5000,
   period: 1,
   startDate: null,
-  interestRate: 0.20, // 20% annual simple interest
+  interestRate: 0.30, // 30% annual reducing-balance interest
   signature: null,
   maxAllowedPeriod: 1, // Will be updated based on loan history
   completedOneMonthLoans: 0,
   maxLoanAmount: 10000, // Will be calculated dynamically based on affordability
   affordabilityRatio: null // Max monthly payment from financial profile
 };
+
+const MONTHLY_FEE = 60;
+const INITIATION_FEE_RATE = 0.15;
+const DAYS_PER_MONTH = 30;
+
+function calculateFeeTotals(period, configuredStartDate) {
+  let totalMonthlyFees = 0;
+  let proratedDays = null;
+
+  if (configuredStartDate) {
+    const start = new Date();
+    start.setHours(12, 0, 0, 0);
+    const paymentDate = new Date(configuredStartDate);
+    paymentDate.setHours(12, 0, 0, 0);
+
+    const daysUntilPayment = Math.max(1, Math.ceil((paymentDate - start) / (1000 * 60 * 60 * 24)));
+    proratedDays = Math.min(daysUntilPayment, DAYS_PER_MONTH);
+
+    const firstMonthFee = (MONTHLY_FEE / DAYS_PER_MONTH) * proratedDays;
+    const remainingMonthsFees = period > 1 ? MONTHLY_FEE * (period - 1) : 0;
+    totalMonthlyFees = firstMonthFee + remainingMonthsFees;
+  } else {
+    totalMonthlyFees = MONTHLY_FEE * period;
+  }
+
+  return {
+    totalMonthlyFees,
+    proratedDays
+  };
+}
+
+function calculateRepaymentBreakdown(amount, period, annualRate, configuredStartDate) {
+  const normalizedAmount = Math.max(0, Number(amount) || 0);
+  const normalizedPeriod = Math.max(1, Number(period) || 1);
+  const normalizedAnnualRate = Number(annualRate) || 0;
+  const interestAnnualRate = normalizedAnnualRate; // Interest rate IS the annual rate; initiation is separate
+  const monthlyRate = interestAnnualRate / 12;
+
+  let amortizedMonthly = 0;
+  if (!monthlyRate) {
+    amortizedMonthly = normalizedAmount / normalizedPeriod;
+  } else {
+    const factor = Math.pow(1 + monthlyRate, normalizedPeriod);
+    amortizedMonthly = (normalizedAmount * monthlyRate * factor) / (factor - 1);
+  }
+
+  const totalInterest = Math.max((amortizedMonthly * normalizedPeriod) - normalizedAmount, 0);
+  const totalInitiationFees = normalizedAmount * INITIATION_FEE_RATE;
+  const { totalMonthlyFees, proratedDays } = calculateFeeTotals(normalizedPeriod, configuredStartDate);
+
+  const totalRepayment = normalizedAmount + totalInterest + totalInitiationFees + totalMonthlyFees;
+  const monthlyPayment = totalRepayment / normalizedPeriod;
+
+  return {
+    totalInterest,
+    totalRepayment,
+    monthlyPayment,
+    totalMonthlyFees,
+    totalInitiationFees,
+    monthlyInterest: totalInterest / normalizedPeriod,
+    proratedDays
+  };
+}
 
 function parseDateInputValue(value) {
   if (!value) return null;
@@ -102,11 +165,11 @@ async function checkLoanHistory() {
     const count = data?.length || 0;
     loanConfig.completedOneMonthLoans = count;
 
-    // Set interest rate: 20% for first loan, 18% for subsequent loans
-    if (count === 0) {
-      loanConfig.interestRate = 0.20; // 20% annual for first loan
+    // Set interest rate: 30% for first 3 loans, 28% for subsequent loans
+    if (count < 3) {
+      loanConfig.interestRate = 0.30; // 30% annual
     } else {
-      loanConfig.interestRate = 0.18; // 18% annual for all loans after first
+      loanConfig.interestRate = 0.28; // 28% annual for returning borrowers
     }
 
     // If user has 3 or more 1-month loans, unlock all periods
@@ -178,23 +241,30 @@ function calculateMaxLoanAmount() {
     return;
   }
 
-  const maxMonthlyPayment = loanConfig.affordabilityRatio; // Max they can afford per month
-  const annualRate = loanConfig.interestRate; // 20% or 18%
-  const monthlyRate = annualRate / 12; // Convert to monthly
-  const n = loanConfig.period; // Number of months
+  const maxMonthlyPayment = Number(loanConfig.affordabilityRatio) || 0;
+  const annualRate = Number(loanConfig.interestRate) || 0;
+  const n = Math.max(1, Number(loanConfig.period) || 1);
 
-  // Amortized loan formula: L = P × [(1 - (1 + r)^-n) / r]
-  let maxLoan;
-  if (monthlyRate > 0) {
-    maxLoan = maxMonthlyPayment * ((1 - Math.pow(1 + monthlyRate, -n)) / monthlyRate);
-  } else {
-    maxLoan = maxMonthlyPayment * n; // If rate is 0
-  }
+  const configuredStartDate = getConfiguredStartDate();
+  const { totalMonthlyFees } = calculateFeeTotals(n, configuredStartDate);
+  const fixedMonthlyFees = totalMonthlyFees / n;
+
+  const effectiveInit = INITIATION_FEE_RATE;
+  const interestAnnualRate = annualRate; // Interest rate is the full annual rate
+  const monthlyRate = interestAnnualRate / 12;
+  const perRandMonthly = monthlyRate > 0
+    ? ((monthlyRate * Math.pow(1 + monthlyRate, n)) / (Math.pow(1 + monthlyRate, n) - 1))
+    : (1 / n);
+
+  const principalCoefficient = perRandMonthly + (effectiveInit / n);
+  const availableForPrincipal = maxMonthlyPayment - fixedMonthlyFees;
+  const maxLoan = principalCoefficient > 0 && availableForPrincipal > 0
+    ? (availableForPrincipal / principalCoefficient)
+    : 0;
 
   loanConfig.maxLoanAmount = Number(maxLoan.toFixed(2)); // Round to 2 decimals (matches backend)
   
   console.log(`📊 Max loan for ${n} month(s) @ ${(annualRate * 100).toFixed(0)}% APR: R${loanConfig.maxLoanAmount.toLocaleString()}`);
-  console.log(`   Formula: R${maxMonthlyPayment} × [(1 - (1 + ${monthlyRate.toFixed(6)})^-${n}) / ${monthlyRate.toFixed(6)}]`);
   
   // Update max loan display in UI
   const maxLoanDisplay = document.getElementById('maxLoanDisplay');
@@ -374,83 +444,20 @@ function getLoanSummary() {
   const amount = Math.max(0, Number(loanConfig.amount) || 0);
   const period = Math.max(1, Number(loanConfig.period) || 1);
   const interestRate = Number(loanConfig.interestRate) || 0;
-  const MONTHLY_FEE = 60; // R60 admin fee per 30-day period
-  const INITIATION_FEE_RATE = 0.15; // 15% of loan amount per month
-  const CREDIT_LIFE_RATE = 0.0045; // 0.45% of initial loan amount
-  const DAYS_PER_MONTH = 30; // Standard 30-day month for calculations
-  
-  // Calculate prorated admin fee based on repayment schedule
-  let totalMonthlyFees = 0;
-  
   const configuredStartDate = getConfiguredStartDate();
-  if (configuredStartDate) {
-    // Calculate days from loan start to first payment date
-    const start = new Date();
-    start.setHours(12, 0, 0, 0);
-    const paymentDate = new Date(configuredStartDate);
-    paymentDate.setHours(12, 0, 0, 0);
-    
-    // Calculate actual days between today and payment date
-    const daysUntilPayment = Math.max(1, Math.ceil((paymentDate - start) / (1000 * 60 * 60 * 24)));
-    
-    // Prorate the first month's admin fee: (days used / 30 days) * R60
-    const proratedDays = Math.min(daysUntilPayment, DAYS_PER_MONTH);
-    const firstMonthFee = (MONTHLY_FEE / DAYS_PER_MONTH) * proratedDays;
-    
-    // For multi-month loans, add full fees for remaining months
-    const remainingMonthsFees = period > 1 ? MONTHLY_FEE * (period - 1) : 0;
-    totalMonthlyFees = firstMonthFee + remainingMonthsFees;
-    
-    console.log(`📊 Admin fee prorated: First month ${proratedDays} days @ R${(MONTHLY_FEE / DAYS_PER_MONTH).toFixed(2)}/day = R${firstMonthFee.toFixed(2)}${period > 1 ? ` + ${period - 1} months @ R60 = R${totalMonthlyFees.toFixed(2)}` : ''}`);
-  } else {
-    // If no start date, charge full monthly fee per month
-    totalMonthlyFees = MONTHLY_FEE * period;
-  }
-  
-  // NOTE: Admin fee charging logic:
-  // - First payment period: Fee is prorated based on days from loan disbursement to payment date
-  // - Example: 15 days until first payment = (15/30) × R60 = R30
-  // - Subsequent months: Full R60 fee charged per month
-  // - Early repayment will trigger recalculation and refund of unused fees
-  
-  // Simple interest calculation: I = P × R × T
-  // Total interest = principal × annual rate × (months / 12)
-  const totalInterest = amount * interestRate * (period / 12);
-  
-  // Calculate initiation fee: 15% of loan amount per month (no cap)
-  const initiationFeePerMonth = amount * INITIATION_FEE_RATE;
-  
-  // Total initiation fees (charged every month)
-  const totalInitiationFees = initiationFeePerMonth * period;
-  
-  // Combined total fees
-  const totalFees = totalMonthlyFees + totalInitiationFees;
-  // Credit life is 0.45% of principal, spread evenly across the term
-  const totalCreditLife = Number((amount * CREDIT_LIFE_RATE).toFixed(2));
-  const creditLifeMonthly = Number((totalCreditLife / period).toFixed(2));
-  const combinedFees = totalFees + totalCreditLife;
-  
-  // Total repayment = principal + total interest + all fees (incl. credit life)
-  const totalRepayment = amount + totalInterest + combinedFees;
-  
-  // Monthly payment = (principal + total interest + total fees) / number of months
-  const monthlyPayment = totalRepayment / period;
-  
-  // Monthly interest portion (for display purposes)
-  const monthlyInterest = totalInterest / period;
+  const summary = calculateRepaymentBreakdown(amount, period, interestRate, configuredStartDate);
 
   return {
-    totalInterest,
-    totalRepayment,
-    monthlyPayment,
-    totalFees,
+    totalInterest: summary.totalInterest,
+    totalRepayment: summary.totalRepayment,
+    monthlyPayment: summary.monthlyPayment,
+    totalFees: summary.totalMonthlyFees + summary.totalInitiationFees,
     monthlyFee: MONTHLY_FEE,
-    initiationFee: initiationFeePerMonth,
-    totalMonthlyFees,
-    totalInitiationFees,
-    monthlyInterest,
-    creditLifeMonthly,
-    totalCreditLife
+    initiationFee: summary.totalInitiationFees,
+    totalMonthlyFees: summary.totalMonthlyFees,
+    totalInitiationFees: summary.totalInitiationFees,
+    monthlyInterest: summary.monthlyInterest,
+    proratedDays: summary.proratedDays
   };
 }
 
@@ -476,19 +483,19 @@ function calculateAndUpdateSummary() {
       const paymentDate = new Date(configuredStartDate);
       paymentDate.setHours(12, 0, 0, 0);
       const daysUntilPayment = Math.max(1, Math.ceil((paymentDate - start) / (1000 * 60 * 60 * 24)));
-      const proratedDays = Math.min(daysUntilPayment, 30);
+      const proratedDays = Math.min(daysUntilPayment, DAYS_PER_MONTH);
       
       // Update the label to show prorated calculation
       const labelElement = summaryFeeElement.previousElementSibling;
       if (labelElement && labelElement.classList.contains('summary-label')) {
         if (loanConfig.period === 1) {
           labelElement.innerHTML = `
-            Total Admin Fees (${proratedDays} days @ R2/day)
+            Total Service Fees (${proratedDays} days @ R2/day)
             <i class="fas fa-info-circle" style="color: var(--color-primary); font-size: 0.8rem; margin-left: 4px;" title="Prorated based on ${proratedDays} days until first payment"></i>
           `;
         } else {
           labelElement.innerHTML = `
-            Total Admin Fees (1st: ${proratedDays} days, then R60/month)
+            Total Service Fees (1st: ${proratedDays} days, then R60/month)
             <i class="fas fa-info-circle" style="color: var(--color-primary); font-size: 0.8rem; margin-left: 4px;" title="First payment prorated for ${proratedDays} days, then R60 per month"></i>
           `;
         }
@@ -498,30 +505,17 @@ function calculateAndUpdateSummary() {
       const labelElement = summaryFeeElement.previousElementSibling;
       if (labelElement && labelElement.classList.contains('summary-label')) {
         labelElement.innerHTML = `
-          Total Admin Fees (R60/month)
-          <i class="fas fa-info-circle" style="color: var(--color-primary); font-size: 0.8rem; margin-left: 4px;" title="R60 per month"></i>
+          Total Service Fees (R60/month)
+          <i class="fas fa-info-circle" style="color: var(--color-primary); font-size: 0.8rem; margin-left: 4px;" title="R60 monthly service fee"></i>
         `;
       }
     }
   }
   
-  // Update initiation fee display
+  // Update initiation fee display — always shown
   const initiationFeeElement = document.getElementById('summaryInitiationFee');
   if (initiationFeeElement) {
     initiationFeeElement.textContent = `R ${formatCurrency(summary.totalInitiationFees)}`;
-  }
-
-  // Update credit life premium display
-  const creditLifeElement = document.getElementById('summaryCreditLife');
-  if (creditLifeElement) {
-    creditLifeElement.textContent = `R ${formatCurrency(summary.totalCreditLife)}`;
-    const creditLifeLabel = creditLifeElement.previousElementSibling;
-    if (creditLifeLabel && creditLifeLabel.classList.contains('summary-label')) {
-      creditLifeLabel.innerHTML = `
-        Credit Life Premium (0.45% of principal)
-        <i class="fas fa-info-circle" style="color: var(--color-primary); font-size: 0.8rem; margin-left: 4px;" title="Calculated at 0.45% of the approved loan amount and spread across ${loanConfig.period} month${loanConfig.period > 1 ? 's' : ''}."></i>
-      `;
-    }
   }
   
   document.getElementById('summaryMonthly').textContent = `R ${formatCurrency(summary.monthlyPayment)}`;
@@ -674,7 +668,6 @@ window.prepareLoanApplication = function() {
     offer_total_initiation_fees: Number(summary.totalInitiationFees) || 0,
     offer_monthly_repayment: Number(summary.monthlyPayment) || 0,
     offer_total_repayment: Number(summary.totalRepayment) || 0,
-    offer_credit_life_monthly: Number(summary.creditLifeMonthly) || 0,
     stagedAt: new Date().toISOString()
   };
 

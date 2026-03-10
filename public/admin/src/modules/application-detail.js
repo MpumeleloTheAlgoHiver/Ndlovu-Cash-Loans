@@ -8,6 +8,7 @@ import {
   updateApplicationNotes 
 } from '../services/dataService.js';
 import { supabase } from '../services/supabaseClient.js'; 
+import { calculateLoanRepaymentBreakdown } from '../../../shared/loan-calculations.js';
 import { 
   sendContract, 
   getSubmissionStatus, 
@@ -1436,19 +1437,27 @@ const renderSidePanel = (app) => {
   
   // Constants from Business Logic
   const MONTHLY_FEE = 60.00;
-  const INITIATION_FEE_RATE = 0.15; 
   
-  // Tiered Interest: 20% for first 3 loans, 18% thereafter
-  const totalAnnualRate = (historyCount < 3) ? 0.20 : 0.18;
-  const interestPortionRate = totalAnnualRate - INITIATION_FEE_RATE; 
+  // Initiation fee applies to every loan
+  const INITIATION_FEE_RATE = 0.15;
+  
+  // Tiered Interest: 30% for first 3 loans, 28% thereafter
+  const totalAnnualRate = (historyCount < 3) ? 0.30 : 0.28;
+  const interestPortionRate = totalAnnualRate; // Interest rate is the full annual rate
 
   // Calculations
-  const totalInterest = principal * interestPortionRate * (term / 12);
-  const totalInitiationFees = (principal * INITIATION_FEE_RATE) * term;
-  const totalMonthlyFees = MONTHLY_FEE * term;
-  
-  const totalRepayment = principal + totalInterest + totalMonthlyFees + totalInitiationFees;
-  const monthlyPayment = totalRepayment / term;
+  const calc = calculateLoanRepaymentBreakdown({
+    principal,
+    annualRate: totalAnnualRate,
+    termMonths: term,
+    monthlyServiceFee: MONTHLY_FEE,
+    initiationFeeRate: INITIATION_FEE_RATE
+  });
+  const totalInterest = calc.totalInterest;
+  const totalInitiationFees = calc.totalInitiationFees;
+  const totalMonthlyFees = calc.totalMonthlyFees;
+  const totalRepayment = calc.totalRepayment;
+  const monthlyPayment = calc.monthlyPayment;
 
   // --- 2. FETCH FIRST REPAYMENT DATE (Refined) ---
   const scheduledDate = offer.first_payment_date || app.repayment_start_date;
@@ -1471,7 +1480,7 @@ const renderSidePanel = (app) => {
   breakdown.innerHTML = `
     <div class="space-y-3 bg-gray-50 p-4 rounded-xl border border-gray-200">
         <div class="flex justify-between items-center text-xs">
-            <span class="text-gray-500">Tiered Interest (${(interestPortionRate * 100).toFixed(1)}%)</span>
+            <span class="text-gray-500">Reducing-Balance Interest (${(interestPortionRate * 100).toFixed(1)}% p.a.)</span>
             <span class="font-bold text-gray-900">${formatCurrency(totalInterest)}</span>
         </div>
         <div class="flex justify-between items-center text-xs">
@@ -1479,7 +1488,7 @@ const renderSidePanel = (app) => {
             <span class="font-bold text-gray-900">${formatCurrency(totalInitiationFees)}</span>
         </div>
         <div class="flex justify-between items-center text-xs">
-            <span class="text-gray-500">Monthly Service Fee</span>
+            <span class="text-gray-500">Monthly Service Fee (R60/mo)</span>
             <span class="font-bold text-gray-900">${formatCurrency(totalMonthlyFees)}</span>
         </div>
         <div class="pt-2 border-t border-gray-200 flex justify-between items-center">

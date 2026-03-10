@@ -9,6 +9,7 @@ import {
   getCurrentAdminProfile
 } from '../services/dataService.js';
 import { formatCurrency, formatDate } from '../shared/utils.js';
+import { calculateLoanRepaymentBreakdown, calculateMaxPrincipalFromAffordablePayment } from '../../../shared/loan-calculations.js';
 
 // --- CONFIGURATION ---
 const USER_PORTAL_URL = 'https://zw-express-6ulf9yybu-mps-projects-81dea2b0.vercel.app';
@@ -1332,12 +1333,12 @@ function validateRepaymentDate(dateString) {
 
 function calculateLoanDetails(amount, period, startDate, historyCount) {
     const MONTHLY_FEE = 60;           
-    const INITIATION_FEE_RATE = 0.15; // Fixed 15% per month
+    const INITIATION_FEE_RATE = 0.15; // applies to every loan
     const DAYS_PER_MONTH = 30;
     
-    // Tiered Interest: 20% for first 3 loans, 18% thereafter
-    let totalRate = (historyCount < 3) ? 0.20 : 0.18;
-    let interestPortion = totalRate - INITIATION_FEE_RATE; // 5% or 3%
+    // Tiered Interest: 30% for first 3 loans, 28% thereafter
+    let totalRate = (historyCount < 3) ? 0.30 : 0.28;
+    let interestPortion = totalRate; // Interest rate is the full annual rate
 
     let totalMonthlyFees = 0;
     if (startDate) {
@@ -1353,11 +1354,22 @@ function calculateLoanDetails(amount, period, startDate, historyCount) {
         totalMonthlyFees = MONTHLY_FEE * period;
     }
 
-    const totalInterest = amount * interestPortion * (period / 12);
-    const totalInitiationFees = (amount * INITIATION_FEE_RATE) * period; 
-    
-    const totalRepayment = amount + totalInterest + totalMonthlyFees + totalInitiationFees;
-    const monthlyPayment = totalRepayment / period;
+    const calc = calculateLoanRepaymentBreakdown({
+        principal: amount,
+        annualRate: totalRate,
+        termMonths: period,
+        monthlyServiceFee: MONTHLY_FEE,
+        initiationFeeRate: INITIATION_FEE_RATE,
+        firstPeriodDays: startDate
+            ? Math.min(Math.max(1, Math.ceil((new Date(startDate) - new Date()) / (1000 * 60 * 60 * 24))), DAYS_PER_MONTH)
+            : null,
+        daysPerMonth: DAYS_PER_MONTH
+    });
+
+    const totalInterest = calc.totalInterest;
+    const totalInitiationFees = calc.totalInitiationFees;
+    const totalRepayment = calc.totalRepayment;
+    const monthlyPayment = calc.monthlyPayment;
 
     return { 
         totalInterest, totalRepayment, monthlyPayment, 
@@ -1393,14 +1405,15 @@ async function renderLoanConfiguration(container) {
     const calc = calculateLoanDetails(amount, period, startDate, history);
 
     // DYNAMIC MAX LOAN CALCULATION (Amortized formula)
-    const monthlyRate = (calc.totalRate) / 12;
     let maxLoan = 10000; // Default fallback
     if (limit > 0) {
-        if (monthlyRate > 0) {
-            maxLoan = limit * ((1 - Math.pow(1 + monthlyRate, -period)) / monthlyRate);
-        } else {
-            maxLoan = limit * period;
-        }
+        maxLoan = calculateMaxPrincipalFromAffordablePayment({
+            maxMonthlyPayment: limit,
+            annualRate: calc.totalRate,
+            termMonths: period,
+            monthlyServiceFee: 60,
+            initiationFeeRate: 0.15
+        });
     }
     maxLoan = Math.floor(maxLoan / 100) * 100; // Round to nearest R100
 
@@ -1467,10 +1480,13 @@ async function renderLoanConfiguration(container) {
                                 <span class="block text-[10px] uppercase text-gray-500 font-bold">Interest</span>
                                 <span class="text-white font-medium">${(calc.interestPortion * 100).toFixed(1)}%</span>
                             </div>
-                            <div>
+                            ${calc.initiationRate > 0 ? `<div>
                                 <span class="block text-[10px] uppercase text-gray-500 font-bold">Initiation</span>
                                 <span class="text-white font-medium">${(calc.initiationRate * 100).toFixed(0)}%</span>
-                            </div>
+                            </div>` : `<div>
+                                <span class="block text-[10px] uppercase text-gray-500 font-bold">Initiation</span>
+                                <span class="text-white font-medium text-green-400">N/A</span>
+                            </div>`}
                         </div>
                         <div class="flex justify-between mt-4">
                             <span class="text-gray-400">Duration</span> 

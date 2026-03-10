@@ -513,8 +513,12 @@ app.post('/api/calculate-affordability', (req, res) => {
             monthly_income,
             affordability_percent = 20, // Default 20%
             annual_interest_rate = 20, // Default 20% APR
-            loan_term_months = 1 // Default 1 month
+            loan_term_months = 1, // Default 1 month
+            monthly_service_fee = 60,
+            initiation_fee_rate = 15, // 15% initiation fee on every loan
         } = req.body;
+
+        const effective_initiation = initiation_fee_rate;
 
         if (!monthly_income || monthly_income <= 0) {
             return res.status(400).json({ error: 'Valid monthly_income is required' });
@@ -523,15 +527,25 @@ app.post('/api/calculate-affordability', (req, res) => {
         // 1. Maximum monthly repayment (13% of income)
         const max_monthly_payment = monthly_income * (affordability_percent / 100);
 
-        // 2. Monthly interest rate (APR / 12)
-        const monthly_rate = (annual_interest_rate / 100) / 12;
+        // 2. Convert annual rate from percentage to decimal; interest rate is the full annual rate
+        const total_annual_rate = annual_interest_rate / 100;
+        const initiation_rate_decimal = effective_initiation / 100;
+        const interest_annual_rate = total_annual_rate; // Interest is the full annual rate; initiation is separate
+        const monthly_rate = interest_annual_rate / 12;
 
-        // 3. Amortized loan amount formula
-        // Formula: P = M * [(1 - (1 + r)^-n) / r]
-        // Where: P = Principal (loan amount), M = Monthly payment, r = monthly rate, n = number of months
-        const loan_amount = monthly_rate > 0
-            ? max_monthly_payment * (1 - Math.pow(1 + monthly_rate, -loan_term_months)) / monthly_rate
-            : max_monthly_payment * loan_term_months; // If rate is 0, simple calculation
+        // 3. Reducing-balance payment per R1 principal
+        const per_rand_monthly = monthly_rate > 0
+            ? (monthly_rate * Math.pow(1 + monthly_rate, loan_term_months)) / (Math.pow(1 + monthly_rate, loan_term_months) - 1)
+            : (1 / loan_term_months);
+
+        // 4. Principal coefficient includes initiation spread over the term
+        const principal_coefficient = per_rand_monthly + (initiation_rate_decimal / loan_term_months);
+
+        // 5. Monthly service fee is a fixed amount, so deduct first
+        const available_for_principal = Math.max(max_monthly_payment - Number(monthly_service_fee || 0), 0);
+        const loan_amount = principal_coefficient > 0
+            ? available_for_principal / principal_coefficient
+            : 0;
 
         return res.json({
             max_monthly_payment: Number(max_monthly_payment.toFixed(2)),
@@ -540,7 +554,9 @@ app.post('/api/calculate-affordability', (req, res) => {
             monthly_rate: Number((monthly_rate * 100).toFixed(4)),
             annual_interest_rate,
             loan_term_months,
-            affordability_percent
+            affordability_percent,
+            monthly_service_fee: Number(monthly_service_fee || 0),
+            initiation_fee_rate
         });
     } catch (error) {
         console.error('Affordability calculation error:', error);
