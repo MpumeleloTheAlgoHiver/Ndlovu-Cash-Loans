@@ -239,8 +239,8 @@ function renderProfileTab() {
             <label for="gender">Gender</label>
             <select id="gender">
               <option value="">Select</option>
-              <option value="M" ${currentUserProfile.gender === 'M' ? 'selected' : ''}>Male</option>
-              <option value="F" ${currentUserProfile.gender === 'F' ? 'selected' : ''}>Female</option>
+              <option value="M" ${['M', 'm', 'male', 'Male'].includes(currentUserProfile.gender) ? 'selected' : ''}>Male</option>
+              <option value="F" ${['F', 'f', 'female', 'Female'].includes(currentUserProfile.gender) ? 'selected' : ''}>Female</option>
             </select>
           </div>
           <div class="form-group">
@@ -1285,13 +1285,18 @@ async function handleProfileUpdate(e) {
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
   
+  const selectedGender = document.getElementById('gender').value;
+  const normalizedGender = selectedGender
+    ? (selectedGender.toLowerCase().startsWith('m') ? 'M' : selectedGender.toLowerCase().startsWith('f') ? 'F' : null)
+    : null;
+
   const profileData = {
     full_name: document.getElementById('full_name').value.trim(),
     contact_number: document.getElementById('contact_number').value.trim(),
     identity_number: document.getElementById('identity_number').value.trim(),
     surname: document.getElementById('surname').value.trim(),
     first_name: document.getElementById('first_name').value.trim(),
-    gender: document.getElementById('gender').value,
+    gender: normalizedGender,
     date_of_birth: document.getElementById('date_of_birth').value || null,
     street_address: document.getElementById('street_address').value.trim(),
     postal_code: document.getElementById('postal_code').value.trim(),
