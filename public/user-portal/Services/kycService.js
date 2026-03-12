@@ -441,15 +441,14 @@ async function getUserKycStatus(userId) {
       });
       
       const statusStr = (data.status || '').toString().trim();
-      const isApproved = statusStr === 'Approved' || 
-                        statusStr === 'approved' || 
-                        statusStr === 'APPROVED' ||
-                        statusStr.toLowerCase() === 'approved';
+      const normalizedStatus = statusStr.toLowerCase();
+      const normalizedEventType = (data.event_type || '').toString().toLowerCase().trim();
+      const completionTokens = ['approved', 'complete', 'completed', 'verified', 'success', 'successful', 'passed', 'done'];
+      const isApproved = completionTokens.some(token =>
+        normalizedStatus === token || normalizedStatus.includes(token) || normalizedEventType.includes(token)
+      );
       
       console.log(`✅ Is Approved: ${isApproved}`);
-      
-      // Return normalized status for frontend
-      const normalizedStatus = statusStr.toLowerCase();
       
       return {
         verified: isApproved,
@@ -476,8 +475,11 @@ async function getUserKycStatus(userId) {
   const latestSession = userSessions.sort((a, b) =>
     new Date(b.createdAt) - new Date(a.createdAt)
   )[0];
+  const fallbackStatus = (latestSession.status || '').toString().toLowerCase().trim();
+  const fallbackCompletion = ['approved', 'complete', 'completed', 'verified', 'success', 'successful', 'passed', 'done']
+    .some(token => fallbackStatus === token || fallbackStatus.includes(token));
   return {
-    verified: latestSession.status === 'Approved',
+    verified: fallbackCompletion,
     status: latestSession.status,
     sessionId: latestSession.sessionId,
     updatedAt: latestSession.lastUpdated || latestSession.createdAt

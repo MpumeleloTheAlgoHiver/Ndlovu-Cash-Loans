@@ -110,9 +110,16 @@ async function refreshKycStatus() {
 
     const data = await response.json();
     console.log('📋 KYC status response:', data);
+
+    const normalizedStatus = (data.normalizedStatus || data.status || '').toString().toLowerCase().trim();
+    const normalizedEventType = (data.eventType || '').toString().toLowerCase().trim();
+    const completionTokens = ['approved', 'complete', 'completed', 'verified', 'success', 'successful', 'passed', 'done'];
+    const completionByStatus = completionTokens.some(token =>
+      normalizedStatus === token || normalizedStatus.includes(token) || normalizedEventType.includes(token)
+    );
     
-    // Check for approved status
-    if (data.verified) {
+    // Treat approved/completed/verified/successful statuses as complete
+    if (data.verified || completionByStatus) {
       setKycStatus('ready', 'Approved');
       kycButtonRef.disabled = true;
       kycButtonRef.classList.add('completed');
@@ -132,7 +139,7 @@ async function refreshKycStatus() {
     }
     
     // Show intermediate statuses (Started, In Progress, etc.)
-    if (data.normalizedStatus) {
+    if (normalizedStatus) {
       const statusMap = {
         'started': 'Verification Started',
         'in progress': 'Verification In Progress',
@@ -142,29 +149,32 @@ async function refreshKycStatus() {
         'expired': 'Session Expired'
       };
       
-      const displayStatus = statusMap[data.normalizedStatus] || data.status || 'Pending';
+      const displayStatus = statusMap[normalizedStatus] || data.status || 'Pending';
       
-      if (data.normalizedStatus === 'rejected' || data.normalizedStatus === 'expired') {
+      if (normalizedStatus === 'rejected' || normalizedStatus === 'expired') {
         setKycStatus('partial', displayStatus);
         documentState.kyc = 'pending';
-      } else if (data.normalizedStatus === 'started' || data.normalizedStatus.includes('progress')) {
+      } else if (normalizedStatus === 'started' || normalizedStatus.includes('progress') || normalizedStatus === 'pending') {
         setKycStatus('partial', displayStatus);
         documentState.kyc = 'partial';
       }
       
       updateNextButtonState();
       renderModuleStatus();
+      return;
     }
-    
-    // Not verified, so KYC is not complete
-    documentState.kyc = 'pending';
 
     const statusLabel = formatKycStatusLabel(data.status);
     if (statusLabel) {
       setKycStatus('partial', statusLabel);
+      documentState.kyc = 'partial';
     } else {
       setKycStatus(null, 'Start');
+      documentState.kyc = 'pending';
     }
+
+    updateNextButtonState();
+    renderModuleStatus();
   } catch (err) {
     console.error('Failed to refresh KYC status:', err);
     setKycStatus('partial', 'Status unavailable');
