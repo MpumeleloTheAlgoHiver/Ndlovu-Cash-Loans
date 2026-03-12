@@ -220,43 +220,23 @@ function renderProfileTab() {
         <!-- Personal Details Form -->
         <div class="form-grid">
           <div class="form-group">
+            <label for="identity_number">ID Number</label>
+            <input type="text" id="identity_number" value="${currentUserProfile.identity_number || ''}" placeholder="13-digit SA ID" maxlength="13">
+          </div>
+          <div class="form-group">
+            <label for="first_name">First Name</label>
+            <input type="text" id="first_name" value="${currentUserProfile.first_name || ''}" placeholder="John">
+          </div>
+          <div class="form-group">
+            <label for="surname">Surname</label>
+            <input type="text" id="surname" value="${currentUserProfile.surname || ''}" placeholder="Doe">
+          </div>
+          <div class="form-group">
             <label for="full_name">Full Name</label>
             <input type="text" id="full_name" value="${currentUserProfile.full_name || ''}" placeholder="Enter your full name" required>
           </div>
           <div class="form-group">
-            <label for="email">Email Address</label>
-            <input type="email" id="email" value="${currentUserProfile.email || ''}" placeholder="your@email.com" disabled>
-          </div>
-          <div class="form-group">
-            <label for="contact_number">Cell Phone Number</label>
-            <input type="text" id="contact_number" value="${currentUserProfile.contact_number || ''}" placeholder="0XX XXX XXXX">
-          </div>
-          <div class="form-group">
-            <label for="user_id">User ID</label>
-            <input type="text" id="user_id" value="${currentUserProfile.id || ''}" disabled>
-          </div>
-        </div>
-
-        <!-- Credit Bureau Details -->
-        <div class="section-divider">
-          <h4><i class="fa-solid fa-id-card" style="color: var(--color-primary);"></i> Credit Bureau Details</h4>
-          <p class="section-hint">These details are used for your credit check — fill them in once and skip the form later.</p>
-        </div>
-        <div class="form-grid">
-          <div class="form-group">
-            <label for="identity_number">ID Number <span class="required-star">*</span></label>
-            <input type="text" id="identity_number" value="${currentUserProfile.identity_number || ''}" placeholder="13-digit SA ID" maxlength="13">
-          </div>
-          <div class="form-group">
-            <label for="surname">Surname <span class="required-star">*</span></label>
-            <input type="text" id="surname" value="${currentUserProfile.surname || ''}" placeholder="Doe">
-          </div>
-          <div class="form-group">
-            <label for="first_name">First Name <span class="required-star">*</span></label>
-            <input type="text" id="first_name" value="${currentUserProfile.first_name || ''}" placeholder="John">
-          </div>
-          <div class="form-group">
-            <label for="gender">Gender <span class="required-star">*</span></label>
+            <label for="gender">Gender</label>
             <select id="gender">
               <option value="">Select</option>
               <option value="M" ${currentUserProfile.gender === 'M' ? 'selected' : ''}>Male</option>
@@ -264,20 +244,32 @@ function renderProfileTab() {
             </select>
           </div>
           <div class="form-group">
-            <label for="date_of_birth">Date of Birth <span class="required-star">*</span></label>
+            <label for="date_of_birth">Date of Birth</label>
             <input type="date" id="date_of_birth" value="${currentUserProfile.date_of_birth || ''}">
           </div>
           <div class="form-group">
-            <label for="street_address">Street Address <span class="required-star">*</span></label>
-            <input type="text" id="street_address" value="${currentUserProfile.street_address || ''}" placeholder="123 Main St, Unit 4">
+            <label for="email">Email Address</label>
+            <input type="email" id="email" value="${currentUserProfile.email || ''}" placeholder="your@email.com" disabled>
           </div>
           <div class="form-group">
-            <label for="postal_code">Postal Code <span class="required-star">*</span></label>
-            <input type="text" id="postal_code" value="${currentUserProfile.postal_code || ''}" placeholder="0123" maxlength="4">
+            <label for="contact_number">Cell Phone</label>
+            <input type="text" id="contact_number" value="${currentUserProfile.contact_number || ''}" placeholder="0XX XXX XXXX">
+          </div>
+          <div class="form-group">
+            <label for="street_address">Street Address</label>
+            <input type="text" id="street_address" value="${currentUserProfile.street_address || ''}" placeholder="123 Main St, Unit 4">
           </div>
           <div class="form-group">
             <label for="suburb_area">Suburb / Area</label>
             <input type="text" id="suburb_area" value="${currentUserProfile.suburb_area || ''}" placeholder="Sandton">
+          </div>
+          <div class="form-group">
+            <label for="postal_code">Postal Code</label>
+            <input type="text" id="postal_code" value="${currentUserProfile.postal_code || ''}" placeholder="0123" maxlength="4">
+          </div>
+          <div class="form-group">
+            <label for="user_id">User ID</label>
+            <input type="text" id="user_id" value="${currentUserProfile.id || ''}" disabled>
           </div>
         </div>
         
