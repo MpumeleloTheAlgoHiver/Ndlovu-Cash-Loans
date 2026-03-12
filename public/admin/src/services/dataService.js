@@ -55,7 +55,7 @@ async function ensureLoanFromApplication(application) {
     application_id: applicationId,
     user_id: application.user_id,
     principal_amount: Number(application.offer_principal || application.amount || 0),
-    interest_rate: Number(application.offer_interest_rate || 0), // Already stored as decimal (e.g. 0.2000)
+      interest_rate: Number(application.offer_interest_rate || 0), // Already stored as decimal (e.g. 0.3000)
     term_months: Number(application.term_months || 1),
     monthly_payment: Number(application.offer_monthly_repayment || 0),
     status: 'active',
@@ -347,7 +347,7 @@ export async function updateApplicationStatus(applicationId, newStatus) {
       updatePayload = {
         ...updatePayload,
         offer_principal: principal,
-        offer_interest_rate: totalAnnualRate, // Stored as 0.2000 for numeric(5,4)
+        offer_interest_rate: totalAnnualRate, // Stored as 0.3000 for numeric(5,4)
         offer_total_interest: totalInterest,
         offer_total_initiation_fees: totalInitiation,
         offer_total_admin_fees: totalAdminFees,
@@ -744,7 +744,7 @@ export async function syncApplicationToLoans(applicationId) {
     }
 
     const offerDetails = app.offer_details || {};
-    const annualRate = normalizeAnnualRate(offerDetails.interest_rate ?? app.offer_interest_rate ?? 0.20);
+    const annualRate = normalizeAnnualRate(offerDetails.interest_rate ?? app.offer_interest_rate ?? 0.30);
     const principal = parseFloat(app.amount);
     const termMonths = parseInt(app.term_months);
     const calc = calculateLoanRepaymentBreakdown({

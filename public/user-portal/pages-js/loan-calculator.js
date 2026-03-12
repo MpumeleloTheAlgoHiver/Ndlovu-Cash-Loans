@@ -61,7 +61,7 @@ window.calculateLoan = function() {
   const principal = parseFloat(document.getElementById('loanAmount').value) || 0;
   const termMonths = parseInt(document.getElementById('loanTerm').value) || 0;
   const interestRateSelect = document.getElementById('interestRateSelect');
-  const annualRate = interestRateSelect ? parseFloat(interestRateSelect.value) : 0.20;
+  const annualRate = interestRateSelect ? parseFloat(interestRateSelect.value) : 0.30;
 
   if (principal <= 0 || termMonths <= 0) {
     return;

@@ -1,4 +1,4 @@
-import{s as v}from"./supabaseClient-CMKDwqD5.js";import{i as C}from"./layout-Cn9C-WTG.js";/* empty css               */import{n as U,o as _,j as D,p as T}from"./dataService-vIDfSkHf.js";import{b as w,a as f}from"./utils-D6Z1B7Jq.js";import"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/+esm";let y=[],h=[],u=null,p=null,i=1;const b=20,k=`
+import{s as v}from"./supabaseClient-CMKDwqD5.js";import{i as C}from"./layout-Cn9C-WTG.js";/* empty css               */import{n as U,o as _,j as D,p as T}from"./dataService-CluSniSs.js";import{b as w,a as f}from"./utils-D6Z1B7Jq.js";import"https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.39.0/+esm";let y=[],h=[],u=null,p=null,i=1;const b=20,k=`
 <div id="view-list" class="flex flex-col h-full animate-fade-in">
   <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4 shrink-0">
     <div>

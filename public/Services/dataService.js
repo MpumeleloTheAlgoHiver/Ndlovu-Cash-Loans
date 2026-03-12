@@ -145,7 +145,7 @@ export async function updateApplicationStatus(applicationId, newStatus) {
                 const annualRate = normalizeAnnualRate(
                     offerDetails.interest_rate
                     ?? updatedApp.offer_interest_rate
-                    ?? 0.20
+                    ?? 0.30
                 );
 
         const resolvedFirstPayment = resolveFirstPaymentDate(updatedApp);
@@ -274,7 +274,7 @@ export async function createLoanFromApplication(applicationId) {
         const annualRate = normalizeAnnualRate(
             offerDetails.interest_rate
             ?? app.offer_interest_rate
-            ?? 0.20
+            ?? 0.30
         );
     const resolvedFirstPayment = resolveFirstPaymentDate(app);
     const nextPaymentDate = resolvedFirstPayment

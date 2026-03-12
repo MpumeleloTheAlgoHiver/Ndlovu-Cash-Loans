@@ -512,7 +512,7 @@ app.post('/api/calculate-affordability', (req, res) => {
         const {
             monthly_income,
             affordability_percent = 20, // Default 20%
-            annual_interest_rate = 20, // Default 20% APR
+            annual_interest_rate = 30, // Default 30% APR
             loan_term_months = 1, // Default 1 month
             monthly_service_fee = 60,
             initiation_fee_rate = 15, // 15% initiation fee on every loan

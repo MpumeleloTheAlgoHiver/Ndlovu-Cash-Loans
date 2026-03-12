@@ -55,7 +55,7 @@ let inBranchState = {
     startDate: null,
     reason: 'Personal Loan',
     maxAllowedPeriod: 1,
-    interestRate: 0.20
+        interestRate: 0.30
   },
   documents: {
     idcard: 'pending',
@@ -594,7 +594,7 @@ async function startInBranchFlow() {
         startDate: defaultDate, 
         reason: 'Personal Loan', 
         maxAllowedPeriod: 1, 
-        interestRate: 0.20 
+        interestRate: 0.30 
     };
     
     document.getElementById('applications-list-view').classList.add('hidden');
