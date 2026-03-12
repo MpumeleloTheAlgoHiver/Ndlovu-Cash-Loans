@@ -3,6 +3,82 @@ console.log('✅ Credit check module script loaded');
 
 let isProcessing = false;
 
+// ---------- Profile auto-fill helper ----------
+async function prefillFromProfile() {
+  try {
+    const { supabase } = await import('/Services/supabaseClient.js');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('identity_number, surname, first_name, gender, date_of_birth, street_address, postal_code, suburb_area, contact_number')
+      .eq('id', session.user.id)
+      .single();
+
+    if (!profile) return;
+
+    const map = {
+      identity_number: profile.identity_number,
+      surname: profile.surname,
+      forename: profile.first_name,
+      gender: profile.gender,
+      date_of_birth: profile.date_of_birth,
+      address1: profile.street_address,
+      postal_code: profile.postal_code,
+      address2: profile.suburb_area,
+      cell_tel_no: profile.contact_number
+    };
+
+    let allFilled = true;
+    const required = ['identity_number', 'surname', 'forename', 'gender', 'date_of_birth', 'address1', 'postal_code'];
+
+    for (const [id, value] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      if (value) {
+        el.value = value;
+      }
+      if (required.includes(id) && !value) {
+        allFilled = false;
+      }
+    }
+
+    // If every required field came from the profile, hide the form and auto-tick consent
+    if (allFilled) {
+      const formContent = document.getElementById('credit-form-content');
+      const consentBox = document.getElementById('credit_consent');
+      if (formContent) formContent.style.display = 'none';
+      if (consentBox) consentBox.checked = true;
+
+      // Show a compact summary instead
+      let summary = document.getElementById('profile-prefill-summary');
+      if (!summary) {
+        summary = document.createElement('div');
+        summary.id = 'profile-prefill-summary';
+        summary.style.cssText = 'text-align:center; padding:1.5rem 1rem;';
+        summary.innerHTML = `
+          <i class="fas fa-user-check fa-3x" style="color:#16a34a; margin-bottom:0.75rem;"></i>
+          <h3 style="margin:0 0 0.5rem; font-size:1.1rem; color:#1a1a1a;">Personal details loaded from your profile</h3>
+          <p style="color:#6B7280; font-size:0.85rem;">
+            ${profile.first_name} ${profile.surname} &bull; ${profile.identity_number?.replace(/^(.{6})(.*)(.{2})$/, '$1•••••$3') || ''}
+          </p>
+          <p style="color:#6B7280; font-size:0.8rem; margin-top:0.25rem;">
+            Press <strong>Run Credit Check</strong> to continue.
+          </p>
+        `;
+        const modalBody = document.querySelector('.credit-check-container .modal-body');
+        if (modalBody) modalBody.prepend(summary);
+      }
+      console.log('✅ All credit-check fields pre-filled from profile — form hidden');
+    } else {
+      console.log('ℹ️ Some fields pre-filled from profile, form still visible for completion');
+    }
+  } catch (err) {
+    console.warn('⚠️ Could not pre-fill from profile:', err);
+  }
+}
+
 // Module loading functions
 window.loadCreditCheckModule = function() {
   console.log('🔓 Loading credit check module');
@@ -20,6 +96,7 @@ window.loadCreditCheckModule = function() {
       setTimeout(() => {
         attachButtonListener();
         checkExistingCreditCheck();
+        prefillFromProfile();       // ← auto-fill from profile
       }, 100);
     })
     .catch(error => {
@@ -211,6 +288,9 @@ function resetForm() {
   document.getElementById('credit-result').style.display = 'none';
   document.getElementById('run-credit-check-btn').style.display = 'inline-block';
   document.getElementById('continue-btn').style.display = 'none';
+  // Remove auto-fill summary if present
+  const summary = document.getElementById('profile-prefill-summary');
+  if (summary) summary.remove();
   isProcessing = false;
 }
 
@@ -362,6 +442,8 @@ async function runCreditCheck() {
     
     // Show loading state
     document.getElementById('credit-form-content').style.display = 'none';
+    const prefillSummary = document.getElementById('profile-prefill-summary');
+    if (prefillSummary) prefillSummary.style.display = 'none';
     document.getElementById('credit-loading').style.display = 'block';
     button.style.display = 'none';
     

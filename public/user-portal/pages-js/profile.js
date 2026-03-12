@@ -228,12 +228,56 @@ function renderProfileTab() {
             <input type="email" id="email" value="${currentUserProfile.email || ''}" placeholder="your@email.com" disabled>
           </div>
           <div class="form-group">
-            <label for="contact_number">Contact Number</label>
-            <input type="text" id="contact_number" value="${currentUserProfile.contact_number || ''}" placeholder="+27 XX XXX XXXX">
+            <label for="contact_number">Cell Phone Number</label>
+            <input type="text" id="contact_number" value="${currentUserProfile.contact_number || ''}" placeholder="0XX XXX XXXX">
           </div>
           <div class="form-group">
             <label for="user_id">User ID</label>
             <input type="text" id="user_id" value="${currentUserProfile.id || ''}" disabled>
+          </div>
+        </div>
+
+        <!-- Credit Bureau Details -->
+        <div class="section-divider">
+          <h4><i class="fa-solid fa-id-card" style="color: var(--color-primary);"></i> Credit Bureau Details</h4>
+          <p class="section-hint">These details are used for your credit check — fill them in once and skip the form later.</p>
+        </div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="identity_number">ID Number <span class="required-star">*</span></label>
+            <input type="text" id="identity_number" value="${currentUserProfile.identity_number || ''}" placeholder="13-digit SA ID" maxlength="13">
+          </div>
+          <div class="form-group">
+            <label for="surname">Surname <span class="required-star">*</span></label>
+            <input type="text" id="surname" value="${currentUserProfile.surname || ''}" placeholder="Doe">
+          </div>
+          <div class="form-group">
+            <label for="first_name">First Name <span class="required-star">*</span></label>
+            <input type="text" id="first_name" value="${currentUserProfile.first_name || ''}" placeholder="John">
+          </div>
+          <div class="form-group">
+            <label for="gender">Gender <span class="required-star">*</span></label>
+            <select id="gender">
+              <option value="">Select</option>
+              <option value="M" ${currentUserProfile.gender === 'M' ? 'selected' : ''}>Male</option>
+              <option value="F" ${currentUserProfile.gender === 'F' ? 'selected' : ''}>Female</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="date_of_birth">Date of Birth <span class="required-star">*</span></label>
+            <input type="date" id="date_of_birth" value="${currentUserProfile.date_of_birth || ''}">
+          </div>
+          <div class="form-group">
+            <label for="street_address">Street Address <span class="required-star">*</span></label>
+            <input type="text" id="street_address" value="${currentUserProfile.street_address || ''}" placeholder="123 Main St, Unit 4">
+          </div>
+          <div class="form-group">
+            <label for="postal_code">Postal Code <span class="required-star">*</span></label>
+            <input type="text" id="postal_code" value="${currentUserProfile.postal_code || ''}" placeholder="0123" maxlength="4">
+          </div>
+          <div class="form-group">
+            <label for="suburb_area">Suburb / Area</label>
+            <input type="text" id="suburb_area" value="${currentUserProfile.suburb_area || ''}" placeholder="Sandton">
           </div>
         </div>
         
@@ -1252,12 +1296,34 @@ async function handleProfileUpdate(e) {
   const profileData = {
     full_name: document.getElementById('full_name').value.trim(),
     contact_number: document.getElementById('contact_number').value.trim(),
+    identity_number: document.getElementById('identity_number').value.trim(),
+    surname: document.getElementById('surname').value.trim(),
+    first_name: document.getElementById('first_name').value.trim(),
+    gender: document.getElementById('gender').value,
+    date_of_birth: document.getElementById('date_of_birth').value || null,
+    street_address: document.getElementById('street_address').value.trim(),
+    postal_code: document.getElementById('postal_code').value.trim(),
+    suburb_area: document.getElementById('suburb_area').value.trim(),
     updated_at: new Date().toISOString()
   };
   
   // Validate inputs
   if (!profileData.full_name) {
     alert('❌ Full name is required');
+    btn.disabled = false;
+    btn.innerHTML = originalContent;
+    return;
+  }
+
+  // Basic validation for bureau fields (warn, don't block)
+  if (profileData.identity_number && profileData.identity_number.length !== 13) {
+    alert('⚠️ ID Number must be exactly 13 digits');
+    btn.disabled = false;
+    btn.innerHTML = originalContent;
+    return;
+  }
+  if (profileData.postal_code && profileData.postal_code.length !== 0 && profileData.postal_code.length !== 4) {
+    alert('⚠️ Postal Code must be exactly 4 digits');
     btn.disabled = false;
     btn.innerHTML = originalContent;
     return;
@@ -1279,6 +1345,14 @@ async function handleProfileUpdate(e) {
     // Update local state
     currentUserProfile.full_name = profileData.full_name;
     currentUserProfile.contact_number = profileData.contact_number;
+    currentUserProfile.identity_number = profileData.identity_number;
+    currentUserProfile.surname = profileData.surname;
+    currentUserProfile.first_name = profileData.first_name;
+    currentUserProfile.gender = profileData.gender;
+    currentUserProfile.date_of_birth = profileData.date_of_birth;
+    currentUserProfile.street_address = profileData.street_address;
+    currentUserProfile.postal_code = profileData.postal_code;
+    currentUserProfile.suburb_area = profileData.suburb_area;
     
     // Create notification for account update
     const { notifyAccountUpdated } = await import('/Services/notificationService.js');
