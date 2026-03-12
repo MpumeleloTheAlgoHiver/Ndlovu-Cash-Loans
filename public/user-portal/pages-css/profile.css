@@ -25,10 +25,10 @@ input, button, select, textarea {
 
 .profile-page-wrapper {
   width: 100%;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
   padding: 2rem 1.25rem 3rem;
-  background: #f5f5f7;
+  background: #ffffff;
   position: relative;
   z-index: 1;
 }
