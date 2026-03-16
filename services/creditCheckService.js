@@ -4,7 +4,7 @@ const xml2js = require('xml2js');
 const AdmZip = require('adm-zip');
 
 // Experian API Configuration
-const COMPANY_ORIGIN = process.env.COMPANY_NAME || 'YourCompany';
+const COMPANY_ORIGIN = process.env.COMPANY_NAME || 'Zwane';
 
 const EXPERIAN_CONFIG = {
     url: 'https://apis.experian.co.za/NormalSearchService', // Experian South Africa SOAP endpoint, dont forget to put these in env
@@ -15,6 +15,57 @@ const EXPERIAN_CONFIG = {
     origin_version: '0.0.1',
     testMode: false // Disabled - using real Experian API
 };
+
+function toYyyyMmDdCompact(value) {
+    if (!value) return '';
+    const raw = String(value).trim();
+    if (/^\d{8}$/.test(raw)) return raw;
+    if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw.replace(/-/g, '');
+    const parsed = new Date(raw);
+    if (!Number.isNaN(parsed.getTime())) {
+        return parsed.toISOString().slice(0, 10).replace(/-/g, '');
+    }
+    return '';
+}
+
+function normalizeExperianPayload(userData = {}) {
+    const normalizedGender = String(userData.gender || '').toUpperCase();
+    const gender = normalizedGender.startsWith('F') ? 'F' : (normalizedGender.startsWith('M') ? 'M' : '');
+
+    return {
+        ...userData,
+        identity_number: userData.identity_number || userData.id_number || '',
+        surname: userData.surname || userData.last_name || '',
+        forename: userData.forename || userData.first_name || '',
+        gender,
+        date_of_birth: toYyyyMmDdCompact(userData.date_of_birth),
+        address1: userData.address1 || userData.street_address || userData.address || '',
+        address2: userData.address2 || userData.suburb_area || userData.suburb || '',
+        postal_code: userData.postal_code || '',
+        cell_tel_no: userData.cell_tel_no || userData.cell_phone || userData.contact_number || '',
+        passport_flag: userData.passport_flag || 'N'
+    };
+}
+
+function assertRequiredExperianFields(userData = {}) {
+    const requiredFields = [
+        ['identity_number', 'ID Number'],
+        ['surname', 'Surname'],
+        ['forename', 'First Name'],
+        ['gender', 'Gender'],
+        ['date_of_birth', 'Date of Birth'],
+        ['address1', 'Street Address'],
+        ['postal_code', 'Postal Code']
+    ];
+
+    const missing = requiredFields
+        .filter(([key]) => !userData[key] || !String(userData[key]).trim())
+        .map(([, label]) => label);
+
+    if (missing.length > 0) {
+        throw new Error(`Missing required Experian fields: ${missing.join(', ')}`);
+    }
+}
 
 /**
  * Build SOAP XML request for Experian credit check
@@ -394,10 +445,13 @@ async function performCreditCheck(userData, applicationId, authToken = null) {
     try {
         console.log('🔍 Starting credit check for application:', applicationId);
         console.log('🔧 Experian endpoint:', EXPERIAN_CONFIG.url);
+
+        const experianPayload = normalizeExperianPayload(userData);
+        assertRequiredExperianFields(experianPayload);
         
         // Build SOAP XML request
         const soapRequest = buildCreditCheckXML({
-            ...userData,
+            ...experianPayload,
             client_ref: applicationId.toString()
         });
         
@@ -443,7 +497,7 @@ async function performCreditCheck(userData, applicationId, authToken = null) {
             // Save to database (pass auth token if available)
             const savedRecord = await saveCreditCheckToDatabase(
                 creditScore, 
-                userData.user_id, 
+                experianPayload.user_id || userData.user_id, 
                 applicationId, 
                 xmlContent,
                 authToken

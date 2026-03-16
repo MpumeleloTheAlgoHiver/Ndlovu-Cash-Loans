@@ -234,7 +234,7 @@ async function prefillCreditCheckFormFromProfile() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('identity_number, first_name, surname, gender, date_of_birth, street_address, postal_code, suburb_area, cell_tel_no, contact_number')
+      .select('identity_number, id_number, first_name, surname, last_name, gender, date_of_birth, street_address, address, postal_code, suburb_area, suburb, cell_tel_no, cell_phone, contact_number')
       .eq('id', session.user.id)
       .maybeSingle();
 
@@ -247,13 +247,13 @@ async function prefillCreditCheckFormFromProfile() {
       }
     };
 
-    setValue('identity_number', profile.identity_number || '');
-    setValue('surname', profile.surname || '');
+    setValue('identity_number', profile.identity_number || profile.id_number || '');
+    setValue('surname', profile.surname || profile.last_name || '');
     setValue('forename', profile.first_name || '');
-    setValue('address1', profile.street_address || '');
-    setValue('address2', profile.suburb_area || '');
+    setValue('address1', profile.street_address || profile.address || '');
+    setValue('address2', profile.suburb_area || profile.suburb || '');
     setValue('postal_code', profile.postal_code || '');
-    setValue('cell_tel_no', profile.cell_tel_no || profile.contact_number || '');
+    setValue('cell_tel_no', profile.cell_tel_no || profile.cell_phone || profile.contact_number || '');
 
     const genderEl = document.getElementById('gender');
     if (genderEl && !genderEl.value) {
@@ -815,19 +815,31 @@ window.startCreditCheckSilent = async function(button) {
     // Load profile fields required for Experian
     const { data: profile } = await supabase
       .from('profiles')
-      .select('identity_number, first_name, surname, gender, date_of_birth, street_address, postal_code, suburb_area, cell_tel_no, contact_number')
+      .select('identity_number, id_number, first_name, surname, last_name, gender, date_of_birth, street_address, address, postal_code, suburb_area, suburb, cell_tel_no, cell_phone, contact_number')
       .eq('id', session.user.id)
       .maybeSingle();
 
+    const normalizedProfile = {
+      identity_number: profile?.identity_number || profile?.id_number || '',
+      surname: profile?.surname || profile?.last_name || '',
+      first_name: profile?.first_name || '',
+      gender: profile?.gender || '',
+      date_of_birth: profile?.date_of_birth || '',
+      street_address: profile?.street_address || profile?.address || '',
+      postal_code: profile?.postal_code || '',
+      suburb_area: profile?.suburb_area || profile?.suburb || '',
+      cell_tel_no: profile?.cell_tel_no || profile?.cell_phone || profile?.contact_number || ''
+    };
+
     // Validate required fields exist in profile
     const requiredMap = {
-      'ID Number':      profile?.identity_number,
-      'Surname':        profile?.surname,
-      'First Name':     profile?.first_name,
-      'Gender':         profile?.gender,
-      'Date of Birth':  profile?.date_of_birth,
-      'Street Address': profile?.street_address,
-      'Postal Code':    profile?.postal_code,
+      'ID Number':      normalizedProfile.identity_number,
+      'Surname':        normalizedProfile.surname,
+      'First Name':     normalizedProfile.first_name,
+      'Gender':         normalizedProfile.gender,
+      'Date of Birth':  normalizedProfile.date_of_birth,
+      'Street Address': normalizedProfile.street_address,
+      'Postal Code':    normalizedProfile.postal_code,
     };
 
     const missing = Object.entries(requiredMap)
@@ -891,28 +903,28 @@ window.startCreditCheckSilent = async function(button) {
     }
 
     // Normalise gender to single char expected by Experian
-    const rawGender = String(profile.gender || '').toUpperCase();
+    const rawGender = String(normalizedProfile.gender || '').toUpperCase();
     const gender    = rawGender.startsWith('F') ? 'F' : 'M';
 
     // Normalise DOB  → YYYYMMDD
-    const dobNormalised   = normalizeDateForInput(profile.date_of_birth); // YYYY-MM-DD
+    const dobNormalised   = normalizeDateForInput(normalizedProfile.date_of_birth); // YYYY-MM-DD
     const dob_formatted   = dobNormalised.replace(/-/g, '');              // YYYYMMDD
 
     const userData = {
       user_id:         session.user.id,
-      identity_number: profile.identity_number,
-      surname:         profile.surname,
-      forename:        profile.first_name,
+      identity_number: normalizedProfile.identity_number,
+      surname:         normalizedProfile.surname,
+      forename:        normalizedProfile.first_name,
       forename2: '', forename3: '',
       gender,
       date_of_birth: dob_formatted,
-      address1:      profile.street_address,
-      address2:      profile.suburb_area || '',
+      address1:      normalizedProfile.street_address,
+      address2:      normalizedProfile.suburb_area || '',
       address3: '', address4: '',
-      postal_code:   profile.postal_code,
+      postal_code:   normalizedProfile.postal_code,
       home_tel_code: '', home_tel_no: '',
       work_tel_code: '', work_tel_no: '',
-      cell_tel_no:   profile.cell_tel_no || profile.contact_number || '',
+      cell_tel_no:   normalizedProfile.cell_tel_no,
       passport_flag: 'N'
     };
 
