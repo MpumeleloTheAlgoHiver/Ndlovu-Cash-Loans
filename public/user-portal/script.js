@@ -409,22 +409,6 @@ async function loadPage(pageName) {
       }
     }
 
-    if (pageName === 'apply-loan-2') {
-      try {
-        const scriptUrl = `/user-portal/modules-js/credit-check.js?t=${Date.now()}`;
-        fetch(scriptUrl)
-          .then(response => response.text())
-          .then(scriptContent => {
-            const script = document.createElement('script');
-            script.textContent = scriptContent;
-            document.body.appendChild(script);
-          })
-          .catch(error => console.error('❌ Failed to load credit check script:', error));
-      } catch (e) {
-        console.error('❌ Error loading credit check module:', e);
-      }
-    }
-
     if (pageName === 'apply-loan-3') {
       try {
         const scriptUrl = `/user-portal/modules-js/loan-config.js?t=${Date.now()}`;

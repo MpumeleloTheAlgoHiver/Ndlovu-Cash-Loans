@@ -1,5 +1,19 @@
 import '/user-portal/Services/sessionGuard.js'; // Production auth guard
 
+window.redirectToProfileForCreditCheck = function() {
+  sessionStorage.setItem('returnToCreditCheckAfterProfile', 'true');
+
+  if (typeof window.showToast === 'function') {
+    window.showToast('Complete Profile First', 'Please complete your profile details before running Experian credit check.', 'info');
+  }
+
+  if (typeof loadPage === 'function') {
+    loadPage('profile');
+  } else {
+    window.location.href = '/user-portal/?page=profile';
+  }
+};
+
 // Navigation function for step buttons
 window.goToStep = function(step) {
   // Guard: Cannot go to step 3 without completing credit check

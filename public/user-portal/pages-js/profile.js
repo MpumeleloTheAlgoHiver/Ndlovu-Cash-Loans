@@ -5,6 +5,16 @@ let supabase;
 let currentUserProfile = null;
 let currentFinancialProfile = null;
 let isUploading = false;
+const RETURN_TO_CREDIT_CHECK_KEY = 'returnToCreditCheckAfterProfile';
+
+function returnToCreditCheckStep() {
+  sessionStorage.removeItem(RETURN_TO_CREDIT_CHECK_KEY);
+  if (typeof window.loadPage === 'function') {
+    window.loadPage('apply-loan-2');
+  } else {
+    window.location.href = '/user-portal/?page=apply-loan-2';
+  }
+}
 
 // Centralized handler to flip completion flags and unlock navigation once
 function handleProfileCompletionUnlock(hasFinancial = false, hasDeclarations = false) {
@@ -279,6 +289,11 @@ function renderProfileTab() {
         </div>
         
         <div class="btn-container">
+          ${sessionStorage.getItem(RETURN_TO_CREDIT_CHECK_KEY) === 'true' ? `
+          <button type="button" id="back-to-credit-check-btn" class="btn-secondary">
+            <i class="fa-solid fa-arrow-left"></i> Back to Credit Check
+          </button>
+          ` : ''}
           <button type="submit" id="save-profile-btn" class="btn-primary">
             <i class="fa-solid fa-save"></i> Save Changes
           </button>
@@ -290,6 +305,10 @@ function renderProfileTab() {
   // Attach form listeners
   document.getElementById('profile-form').addEventListener('submit', handleProfileUpdate);
   document.getElementById('avatar-upload').addEventListener('change', handleAvatarUpload);
+  const backToCreditCheckBtn = document.getElementById('back-to-credit-check-btn');
+  if (backToCreditCheckBtn) {
+    backToCreditCheckBtn.addEventListener('click', returnToCreditCheckStep);
+  }
   setupAvatarPlaceholderHover(avatarAsset);
 }
 
@@ -1379,6 +1398,12 @@ async function handleProfileUpdate(e) {
     
     // Show success message
     showNotification('✅ Profile updated successfully!', 'success');
+
+    if (sessionStorage.getItem(RETURN_TO_CREDIT_CHECK_KEY) === 'true') {
+      showNotification('↩ Returning to Credit Check step...', 'info');
+      setTimeout(() => returnToCreditCheckStep(), 650);
+      return;
+    }
     
     // Refresh the tab to show updated info
     setTimeout(() => renderProfileTab(), 500);
