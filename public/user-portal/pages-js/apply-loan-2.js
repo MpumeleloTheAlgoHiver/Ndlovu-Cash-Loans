@@ -17,7 +17,7 @@ window.redirectToProfileForCreditCheck = async function() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('identity_number, surname, first_name, gender, date_of_birth, street_address, postal_code')
+      .select('identity_number, surname, first_name, gender, date_of_birth, street_address, postal_code, contact_number')
       .eq('id', session.user.id)
       .single();
 
@@ -111,13 +111,25 @@ async function runCreditCheckFromProfile(session, profile) {
     }
 
     const userData = {
+      user_id: session.user.id,
       identity_number: profile.identity_number,
       surname: profile.surname,
       forename: profile.first_name,
+      forename2: '',
+      forename3: '',
       gender: profile.gender,
       date_of_birth: (profile.date_of_birth || '').replace(/-/g, ''),
       address1: profile.street_address,
-      postal_code: profile.postal_code
+      address2: '',
+      address3: '',
+      address4: '',
+      postal_code: profile.postal_code,
+      home_tel_code: '',
+      home_tel_no: '',
+      work_tel_code: '',
+      work_tel_no: '',
+      cell_tel_no: profile.contact_number || '',
+      passport_flag: 'N'
     };
 
     const result = await performCreditCheck(applicationId, userData);
