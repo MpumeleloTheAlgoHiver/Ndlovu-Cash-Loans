@@ -1064,24 +1064,50 @@ function showNotificationToast(notification) {
   }, 5000);
 }
 
-function showToast(title, message, type = 'info', duration = 3000) {
+function showToast(title, message, type = 'info', duration = 4000) {
+  // Ensure container exists
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    document.body.appendChild(container);
+  }
+
+  const iconMap = {
+    success: '<i class="fas fa-check-circle"></i>',
+    warning: '<i class="fas fa-exclamation-triangle"></i>',
+    error:   '<i class="fas fa-times-circle"></i>',
+    info:    '<i class="fas fa-info-circle"></i>'
+  };
+
   const toast = document.createElement('div');
-  toast.className = 'notification-toast';
+  toast.className = `notification-toast toast-${type}`;
   toast.innerHTML = `
-    <div class="toast-icon">${getNotificationIcon(type)}</div>
+    <div class="toast-icon">${iconMap[type] || iconMap.info}</div>
     <div class="toast-content">
       <strong>${title}</strong>
       <p>${message}</p>
     </div>
+    <button class="toast-close" aria-label="Close">&times;</button>
+    <div class="toast-progress" style="animation-duration:${duration}ms"></div>
   `;
-  
-  document.body.appendChild(toast);
-  
-  setTimeout(() => toast.classList.add('show'), 100);
-  setTimeout(() => {
-    toast.classList.remove('show');
-    setTimeout(() => toast.remove(), 300);
-  }, duration);
+
+  // Dismiss on click
+  toast.querySelector('.toast-close').addEventListener('click', () => dismissToast(toast));
+
+  container.appendChild(toast);
+
+  // Slide in
+  requestAnimationFrame(() => requestAnimationFrame(() => toast.classList.add('show')));
+
+  // Auto dismiss
+  setTimeout(() => dismissToast(toast), duration);
+}
+
+function dismissToast(toast) {
+  if (!toast || !toast.parentNode) return;
+  toast.classList.remove('show');
+  setTimeout(() => toast.remove(), 350);
 }
 window.showToast = showToast;
 
