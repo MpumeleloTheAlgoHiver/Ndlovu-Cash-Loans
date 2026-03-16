@@ -234,7 +234,7 @@ async function prefillCreditCheckFormFromProfile() {
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('identity_number, first_name, last_name, gender, date_of_birth, address, postal_code, suburb_area, cell_tel_no, contact_number')
+      .select('identity_number, first_name, surname, gender, date_of_birth, street_address, postal_code, suburb_area, cell_tel_no, contact_number')
       .eq('id', session.user.id)
       .maybeSingle();
 
@@ -248,9 +248,9 @@ async function prefillCreditCheckFormFromProfile() {
     };
 
     setValue('identity_number', profile.identity_number || '');
-    setValue('surname', profile.last_name || '');
+    setValue('surname', profile.surname || '');
     setValue('forename', profile.first_name || '');
-    setValue('address1', profile.address || '');
+    setValue('address1', profile.street_address || '');
     setValue('address2', profile.suburb_area || '');
     setValue('postal_code', profile.postal_code || '');
     setValue('cell_tel_no', profile.cell_tel_no || profile.contact_number || '');
@@ -815,18 +815,18 @@ window.startCreditCheckSilent = async function(button) {
     // Load profile fields required for Experian
     const { data: profile } = await supabase
       .from('profiles')
-      .select('identity_number, first_name, last_name, gender, date_of_birth, address, postal_code, suburb_area, cell_tel_no, contact_number')
+      .select('identity_number, first_name, surname, gender, date_of_birth, street_address, postal_code, suburb_area, cell_tel_no, contact_number')
       .eq('id', session.user.id)
       .maybeSingle();
 
     // Validate required fields exist in profile
     const requiredMap = {
       'ID Number':      profile?.identity_number,
-      'Surname':        profile?.last_name,
+      'Surname':        profile?.surname,
       'First Name':     profile?.first_name,
       'Gender':         profile?.gender,
       'Date of Birth':  profile?.date_of_birth,
-      'Street Address': profile?.address,
+      'Street Address': profile?.street_address,
       'Postal Code':    profile?.postal_code,
     };
 
@@ -901,12 +901,12 @@ window.startCreditCheckSilent = async function(button) {
     const userData = {
       user_id:         session.user.id,
       identity_number: profile.identity_number,
-      surname:         profile.last_name,
+      surname:         profile.surname,
       forename:        profile.first_name,
       forename2: '', forename3: '',
       gender,
       date_of_birth: dob_formatted,
-      address1:      profile.address,
+      address1:      profile.street_address,
       address2:      profile.suburb_area || '',
       address3: '', address4: '',
       postal_code:   profile.postal_code,
