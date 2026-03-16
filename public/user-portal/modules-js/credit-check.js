@@ -2,277 +2,85 @@
 console.log('✅ Credit check module script loaded');
 
 let isProcessing = false;
-let hasCreditConsent = false;
 
-async function getSessionAndClient() {
-  const { supabase } = await import('/Services/supabaseClient.js');
-  const { data: { session } } = await supabase.auth.getSession();
-  return { supabase, session };
-}
-
-function setConsentStatusText(text) {
-  const statusEl = document.querySelector('#credit-consent-status .consent-status-text');
-  if (statusEl) statusEl.textContent = text;
-}
-
-async function persistCreditConsent(supabase, userId) {
-  const acceptedAt = new Date().toISOString();
-
-  const { data: existingDeclaration } = await supabase
-    .from('declarations')
-    .select('id, metadata')
-    .eq('user_id', userId)
-    .maybeSingle();
-
-  const metadata = {
-    ...(existingDeclaration?.metadata || {}),
-    credit_check_consent_accepted: true,
-    credit_check_consent_accepted_at: acceptedAt,
-    credit_check_consent_version: 'v1'
-  };
-
+// ---------- Profile auto-fill helper ----------
+async function prefillFromProfile() {
   try {
-    if (existingDeclaration?.id) {
-      const { error: updateError } = await supabase
-        .from('declarations')
-        .update({
-          credit_check_consent_accepted: true,
-          credit_check_consent_accepted_at: acceptedAt,
-          credit_check_consent_version: 'v1',
-          metadata,
-          updated_at: acceptedAt
-        })
-        .eq('user_id', userId);
-
-      if (updateError) throw updateError;
-      return;
-    }
-
-    const { error: insertError } = await supabase
-      .from('declarations')
-      .insert([{
-        user_id: userId,
-        credit_check_consent_accepted: true,
-        credit_check_consent_accepted_at: acceptedAt,
-        credit_check_consent_version: 'v1',
-        metadata
-      }]);
-
-    if (insertError) throw insertError;
-  } catch (error) {
-    const missingColumn = String(error?.message || '').toLowerCase().includes('column')
-      && String(error?.message || '').toLowerCase().includes('credit_check_consent_');
-
-    if (!missingColumn) throw error;
-
-    if (existingDeclaration?.id) {
-      const { error: fallbackUpdateError } = await supabase
-        .from('declarations')
-        .update({
-          metadata,
-          updated_at: acceptedAt
-        })
-        .eq('user_id', userId);
-
-      if (fallbackUpdateError) throw fallbackUpdateError;
-      return;
-    }
-
-    const { error: fallbackInsertError } = await supabase
-      .from('declarations')
-      .insert([{
-        user_id: userId,
-        metadata
-      }]);
-
-    if (fallbackInsertError) throw fallbackInsertError;
-  }
-}
-
-async function showCreditConsentModalOnce() {
-  const modal = document.getElementById('credit-consent-modal');
-  const acceptCheckbox = document.getElementById('credit-consent-accept-checkbox');
-  const confirmBtn = document.getElementById('credit-consent-confirm');
-  const cancelBtn = document.getElementById('credit-consent-cancel');
-
-  if (!modal || !acceptCheckbox || !confirmBtn || !cancelBtn) {
-    return false;
-  }
-
-  const { supabase, session } = await getSessionAndClient();
-  if (!session?.user?.id) {
-    return false;
-  }
-
-  const { data: declarationData, error: fetchError } = await supabase
-    .from('declarations')
-    .select('credit_check_consent_accepted, metadata')
-    .eq('user_id', session.user.id)
-    .maybeSingle();
-
-  if (fetchError) {
-    console.warn('Could not read declarations consent state:', fetchError);
-  }
-
-  const consentFromColumn = declarationData?.credit_check_consent_accepted === true;
-  const consentFromMetadata = declarationData?.metadata?.credit_check_consent_accepted === true;
-  const alreadyAccepted = consentFromColumn || consentFromMetadata;
-
-  if (alreadyAccepted) {
-    hasCreditConsent = true;
-    setConsentStatusText('Credit check consent already captured.');
-    return true;
-  }
-
-  hasCreditConsent = false;
-  setConsentStatusText('Please review and accept the credit bureau consent before running the credit check.');
-
-  modal.classList.remove('hidden');
-  acceptCheckbox.checked = false;
-  confirmBtn.disabled = true;
-
-  return new Promise((resolve) => {
-    const cleanup = () => {
-      acceptCheckbox.onchange = null;
-      cancelBtn.onclick = null;
-      confirmBtn.onclick = null;
-      modal.onclick = null;
-    };
-
-    const handleCancel = () => {
-      modal.classList.add('hidden');
-      cleanup();
-      resolve(false);
-    };
-
-    const handleConfirm = async () => {
-      try {
-        await persistCreditConsent(supabase, session.user.id);
-        hasCreditConsent = true;
-        setConsentStatusText('Credit check consent accepted and saved.');
-        modal.classList.add('hidden');
-        cleanup();
-        resolve(true);
-      } catch (error) {
-        console.error('Failed to save credit consent:', error);
-        alert('Unable to save consent right now. Please try again.');
-      }
-    };
-
-    acceptCheckbox.onchange = () => {
-      confirmBtn.disabled = !acceptCheckbox.checked;
-    };
-
-    cancelBtn.onclick = handleCancel;
-    confirmBtn.onclick = handleConfirm;
-    modal.onclick = (event) => {
-      if (event.target === modal) {
-        handleCancel();
-      }
-    };
-  });
-}
-
-async function initCreditConsentGate() {
-  const runButton = document.getElementById('run-credit-check-btn');
-  if (!runButton || runButton.disabled) return;
-
-  try {
-    const accepted = await showCreditConsentModalOnce();
-    if (!accepted) {
-      runButton.disabled = false;
-      runButton.style.opacity = '1';
-      runButton.style.cursor = 'pointer';
-      setConsentStatusText('Consent not yet accepted. You can accept it when you run the credit check.');
-    } else {
-      runButton.disabled = false;
-      runButton.style.opacity = '1';
-      runButton.style.cursor = 'pointer';
-    }
-  } catch (error) {
-    console.error('Error initializing credit consent gate:', error);
-    setConsentStatusText('Unable to verify consent right now. Please reload and try again.');
-  }
-}
-
-function normalizeDateForInput(value) {
-  if (!value) return '';
-  const dateString = String(value);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateString)) return dateString;
-  if (/^\d{8}$/.test(dateString)) {
-    return `${dateString.slice(0, 4)}-${dateString.slice(4, 6)}-${dateString.slice(6, 8)}`;
-  }
-  const parsed = new Date(dateString);
-  if (!Number.isNaN(parsed.getTime())) {
-    return parsed.toISOString().slice(0, 10);
-  }
-  return '';
-}
-
-function getMissingRequiredCreditFields() {
-  const required = [
-    { id: 'identity_number', label: 'ID Number' },
-    { id: 'surname', label: 'Surname' },
-    { id: 'forename', label: 'First Name' },
-    { id: 'gender', label: 'Gender' },
-    { id: 'date_of_birth', label: 'Date of Birth' },
-    { id: 'address1', label: 'Street Address' },
-    { id: 'postal_code', label: 'Postal Code' }
-  ];
-
-  return required.filter(({ id }) => {
-    const element = document.getElementById(id);
-    const value = element?.value;
-    return !value || !String(value).trim();
-  });
-}
-
-async function prefillCreditCheckFormFromProfile() {
-  try {
-    const { supabase, session } = await getSessionAndClient();
-    if (!session?.user?.id) return;
+    const { supabase } = await import('/Services/supabaseClient.js');
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) return;
 
     const { data: profile } = await supabase
       .from('profiles')
-      .select('identity_number, first_name, last_name, gender, date_of_birth, address, postal_code, suburb_area, cell_tel_no, contact_number')
+      .select('identity_number, surname, first_name, gender, date_of_birth, street_address, postal_code, suburb_area, contact_number')
       .eq('id', session.user.id)
-      .maybeSingle();
+      .single();
 
     if (!profile) return;
 
-    const setValue = (id, value) => {
-      const element = document.getElementById(id);
-      if (element && (element.value == null || element.value.trim() === '')) {
-        element.value = value || '';
-      }
+    const map = {
+      identity_number: profile.identity_number,
+      surname: profile.surname,
+      forename: profile.first_name,
+      gender: profile.gender,
+      date_of_birth: profile.date_of_birth,
+      address1: profile.street_address,
+      postal_code: profile.postal_code,
+      address2: profile.suburb_area,
+      cell_tel_no: profile.contact_number
     };
 
-    setValue('identity_number', profile.identity_number || '');
-    setValue('surname', profile.last_name || '');
-    setValue('forename', profile.first_name || '');
-    setValue('address1', profile.address || '');
-    setValue('address2', profile.suburb_area || '');
-    setValue('postal_code', profile.postal_code || '');
-    setValue('cell_tel_no', profile.cell_tel_no || profile.contact_number || '');
+    let allFilled = true;
+    const required = ['identity_number', 'surname', 'forename', 'gender', 'date_of_birth', 'address1', 'postal_code'];
 
-    const genderEl = document.getElementById('gender');
-    if (genderEl && !genderEl.value) {
-      const rawGender = (profile.gender || '').toUpperCase();
-      genderEl.value = rawGender.startsWith('F') ? 'F' : (rawGender.startsWith('M') ? 'M' : '');
+    for (const [id, value] of Object.entries(map)) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      if (value) {
+        el.value = value;
+      }
+      if (required.includes(id) && !value) {
+        allFilled = false;
+      }
     }
 
-    const dobEl = document.getElementById('date_of_birth');
-    if (dobEl && !dobEl.value) {
-      dobEl.value = normalizeDateForInput(profile.date_of_birth);
+    // If every required field came from the profile, hide the form and auto-tick consent
+    if (allFilled) {
+      const formContent = document.getElementById('credit-form-content');
+      const consentBox = document.getElementById('credit_consent');
+      if (formContent) formContent.style.display = 'none';
+      if (consentBox) consentBox.checked = true;
+
+      // Show a compact summary instead
+      let summary = document.getElementById('profile-prefill-summary');
+      if (!summary) {
+        summary = document.createElement('div');
+        summary.id = 'profile-prefill-summary';
+        summary.style.cssText = 'text-align:center; padding:1.5rem 1rem;';
+        summary.innerHTML = `
+          <i class="fas fa-user-check fa-3x" style="color:#16a34a; margin-bottom:0.75rem;"></i>
+          <h3 style="margin:0 0 0.5rem; font-size:1.1rem; color:#1a1a1a;">Personal details loaded from your profile</h3>
+          <p style="color:#6B7280; font-size:0.85rem;">
+            ${profile.first_name} ${profile.surname} &bull; ${profile.identity_number?.replace(/^(.{6})(.*)(.{2})$/, '$1•••••$3') || ''}
+          </p>
+          <p style="color:#6B7280; font-size:0.8rem; margin-top:0.25rem;">
+            Press <strong>Run Credit Check</strong> to continue.
+          </p>
+        `;
+        const modalBody = document.querySelector('.credit-check-container .modal-body');
+        if (modalBody) modalBody.prepend(summary);
+      }
+      console.log('✅ All credit-check fields pre-filled from profile — form hidden');
+    } else {
+      console.log('ℹ️ Some fields pre-filled from profile, form still visible for completion');
     }
-  } catch (error) {
-    console.warn('Could not prefill credit-check form from profile:', error);
+  } catch (err) {
+    console.warn('⚠️ Could not pre-fill from profile:', err);
   }
 }
 
 // Module loading functions
-window.loadCreditCheckModule = function(options = {}) {
-  const { autoRun = true } = options;
+window.loadCreditCheckModule = function() {
   console.log('🔓 Loading credit check module');
   const moduleContainer = document.getElementById('module-container');
   const moduleContent = document.getElementById('module-content');
@@ -285,38 +93,10 @@ window.loadCreditCheckModule = function(options = {}) {
       console.log('✅ Credit check module loaded');
       
       // Attach button listener after loading
-      setTimeout(async () => {
+      setTimeout(() => {
         attachButtonListener();
-        await prefillCreditCheckFormFromProfile();
-        const hasExistingCheck = await checkExistingCreditCheck();
-        if (!hasExistingCheck && !autoRun) {
-          await initCreditConsentGate();
-        }
-
-        if (!hasExistingCheck && autoRun) {
-          const missingFields = getMissingRequiredCreditFields();
-          if (missingFields.length > 0) {
-            const missingLabels = missingFields.map((f) => f.label).join(', ');
-            moduleContainer.classList.add('hidden');
-            resetForm();
-            if (typeof window.showToast === 'function') {
-              window.showToast('Profile Details Required', `Complete profile fields first: ${missingLabels}`, 'warning');
-            } else {
-              alert(`Please complete these profile fields first: ${missingLabels}`);
-            }
-            if (typeof loadPage === 'function') {
-              loadPage('profile');
-            }
-            return;
-          }
-
-          const formContent = document.getElementById('credit-form-content');
-          if (formContent) {
-            formContent.style.display = 'none';
-          }
-
-          await runCreditCheck();
-        }
+        checkExistingCreditCheck();
+        prefillFromProfile();       // ← auto-fill from profile
       }, 100);
     })
     .catch(error => {
@@ -377,7 +157,7 @@ async function checkExistingCreditCheck() {
     
     if (!session) {
       console.log('⚠️ No session found');
-      return false;
+      return;
     }
     
     // Check session storage first
@@ -465,12 +245,9 @@ async function checkExistingCreditCheck() {
       }
       
       console.log('✅ Existing credit check found - button disabled');
-      return true;
     }
-    return false;
   } catch (error) {
     console.error('❌ Error checking existing credit check:', error);
-    return false;
   }
 }
 
@@ -511,6 +288,9 @@ function resetForm() {
   document.getElementById('credit-result').style.display = 'none';
   document.getElementById('run-credit-check-btn').style.display = 'inline-block';
   document.getElementById('continue-btn').style.display = 'none';
+  // Remove auto-fill summary if present
+  const summary = document.getElementById('profile-prefill-summary');
+  if (summary) summary.remove();
   isProcessing = false;
 }
 
@@ -526,19 +306,9 @@ async function runCreditCheck() {
   const button = document.getElementById('run-credit-check-btn');
   
   try {
-    if (!hasCreditConsent) {
-      const accepted = await showCreditConsentModalOnce();
-      if (!accepted) {
-        alert('⚠️ Credit check consent is required to continue.');
-        return;
-      }
-    }
-
     // Import modules dynamically
     const { performCreditCheck } = await import('/Services/dataService.js');
     const { supabase } = await import('/Services/supabaseClient.js');
-
-    await prefillCreditCheckFormFromProfile();
     
     isProcessing = true;
     button.disabled = true;
@@ -554,6 +324,7 @@ async function runCreditCheck() {
     const address2 = document.getElementById('address2').value.trim();
     const postal_code = document.getElementById('postal_code').value.trim();
     const cell_tel_no = document.getElementById('cell_tel_no').value.trim();
+    const credit_consent = document.getElementById('credit_consent').checked;
     
     console.log('📋 Form values collected');
     
@@ -566,8 +337,8 @@ async function runCreditCheck() {
       return;
     }
     
-    if (!hasCreditConsent) {
-      alert('⚠️ Please accept the credit bureau consent disclaimer to continue');
+    if (!credit_consent) {
+      alert('⚠️ Please consent to the credit check to continue');
       isProcessing = false;
       button.disabled = false;
       button.style.opacity = '1';
@@ -671,6 +442,8 @@ async function runCreditCheck() {
     
     // Show loading state
     document.getElementById('credit-form-content').style.display = 'none';
+    const prefillSummary = document.getElementById('profile-prefill-summary');
+    if (prefillSummary) prefillSummary.style.display = 'none';
     document.getElementById('credit-loading').style.display = 'block';
     button.style.display = 'none';
     
@@ -702,7 +475,10 @@ async function runCreditCheck() {
       sessionStorage.setItem('creditCheckPassed', 'true');
       sessionStorage.setItem('creditData', JSON.stringify(creditData));
       
-      // Auto-download disabled: keep flow manual-only for report retrieval
+      // Download ZIP file if available
+      if (result.zipData) {
+        downloadZipFile(result.zipData, applicationId);
+      }
       
       // Show result with detailed information
       document.getElementById('credit-loading').style.display = 'none';
@@ -733,232 +509,3 @@ async function runCreditCheck() {
     resetForm();
   }
 }
-
-// -------------------------------------------------------
-// SILENT BACKGROUND CREDIT CHECK
-// Called from the circular button on apply-loan-2 page.
-// No module overlay — runs directly from profile data.
-// -------------------------------------------------------
-
-function _resetCircleButton(button) {
-  isProcessing = false;
-  const label = button.querySelector('.scc-label');
-  const spinner = button.querySelector('.scc-spinner');
-  if (label)   label.style.display = '';
-  if (spinner) spinner.style.display = 'none';
-  button.disabled = false;
-  button.classList.remove('is-loading');
-}
-
-function _showCreditResultPopup(score, riskType) {
-  const popup = document.getElementById('credit-result-popup');
-  if (!popup) return;
-
-  const scoreEl  = document.getElementById('cr-score-value');
-  const badgeEl  = document.getElementById('cr-risk-badge');
-  const descEl   = document.getElementById('cr-risk-desc');
-  const bannerEl = popup.querySelector('.cr-banner');
-  const ringEl   = popup.querySelector('.cr-score-ring');
-
-  if (scoreEl) scoreEl.textContent = score || '---';
-
-  // Determine risk level class
-  const riskUpper = String(riskType || '').toUpperCase();
-  let riskClass = 'risk-high';
-  let riskLabel = riskType || 'Unknown';
-  let riskDesc  = 'Your credit profile requires further review before proceeding.';
-
-  if (riskUpper === 'LOW' || score > 650) {
-    riskClass = 'risk-low';
-    riskDesc  = 'Excellent! Your credit profile looks great. You qualify for preferential rates.';
-  } else if (riskUpper === 'MEDIUM' || score > 400) {
-    riskClass = 'risk-medium';
-    riskDesc  = 'Your credit profile is acceptable. Proceed to select your loan amount.';
-  }
-
-  if (badgeEl) {
-    badgeEl.className = `cr-risk-badge ${riskClass}`;
-    badgeEl.textContent = riskLabel;
-  }
-  if (descEl)   descEl.textContent = riskDesc;
-  if (bannerEl) { bannerEl.className = `cr-banner ${riskClass}`; }
-  if (ringEl)   { ringEl.className   = `cr-score-ring ${riskClass}`; }
-
-  popup.style.display = 'flex';
-}
-
-window.startCreditCheckSilent = async function(button) {
-  if (isProcessing) return;
-
-  try {
-    isProcessing = true;
-
-    // Transition button to loading state
-    const label = button.querySelector('.scc-label');
-    const spinner = button.querySelector('.scc-spinner');
-    if (label)   label.style.display = 'none';
-    if (spinner) spinner.style.display = '';
-    button.disabled = true;
-    button.classList.add('is-loading');
-
-    // Dynamic imports
-    const { performCreditCheck } = await import('/Services/dataService.js');
-    const { supabase }           = await import('/Services/supabaseClient.js');
-
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user?.id) {
-      window.showToast?.('Session Expired', 'Please log in again.', 'error');
-      _resetCircleButton(button);
-      return;
-    }
-
-    // Load profile fields required for Experian
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('identity_number, first_name, last_name, gender, date_of_birth, address, postal_code, suburb_area, cell_tel_no, contact_number')
-      .eq('id', session.user.id)
-      .maybeSingle();
-
-    // Validate required fields exist in profile
-    const requiredMap = {
-      'ID Number':      profile?.identity_number,
-      'Surname':        profile?.last_name,
-      'First Name':     profile?.first_name,
-      'Gender':         profile?.gender,
-      'Date of Birth':  profile?.date_of_birth,
-      'Street Address': profile?.address,
-      'Postal Code':    profile?.postal_code,
-    };
-
-    const missing = Object.entries(requiredMap)
-      .filter(([, v]) => !v || !String(v).trim())
-      .map(([k]) => k);
-
-    if (missing.length > 0) {
-      window.showToast?.(
-        'Profile Incomplete',
-        `Please complete your profile first: ${missing.join(', ')}`,
-        'warning'
-      );
-      _resetCircleButton(button);
-      if (typeof loadPage === 'function') loadPage('profile');
-      return;
-    }
-
-    // Ensure credit check consent is persisted
-    const { data: declaration } = await supabase
-      .from('declarations')
-      .select('credit_check_consent_accepted, metadata')
-      .eq('user_id', session.user.id)
-      .maybeSingle();
-
-    const alreadyConsented =
-      declaration?.credit_check_consent_accepted === true ||
-      declaration?.metadata?.credit_check_consent_accepted === true;
-
-    if (!alreadyConsented) {
-      await persistCreditConsent(supabase, session.user.id);
-    }
-    hasCreditConsent = true;
-
-    // Get or create application
-    let applicationId = sessionStorage.getItem('currentApplicationId');
-    if (!applicationId) {
-      const { data: newApp, error: appError } = await supabase
-        .from('loan_applications')
-        .insert([{
-          user_id:     session.user.id,
-          status:      'BUREAU_CHECKING',
-          amount:      0,
-          term_months: 0,
-          purpose:     'Personal Loan'
-        }])
-        .select()
-        .single();
-
-      if (appError) {
-        window.showToast?.('Error', 'Failed to create application. Please try again.', 'error');
-        _resetCircleButton(button);
-        return;
-      }
-      applicationId = newApp.id;
-      sessionStorage.setItem('currentApplicationId', applicationId);
-    } else {
-      await supabase
-        .from('loan_applications')
-        .update({ status: 'BUREAU_CHECKING' })
-        .eq('id', applicationId);
-    }
-
-    // Normalise gender to single char expected by Experian
-    const rawGender = String(profile.gender || '').toUpperCase();
-    const gender    = rawGender.startsWith('F') ? 'F' : 'M';
-
-    // Normalise DOB  → YYYYMMDD
-    const dobNormalised   = normalizeDateForInput(profile.date_of_birth); // YYYY-MM-DD
-    const dob_formatted   = dobNormalised.replace(/-/g, '');              // YYYYMMDD
-
-    const userData = {
-      user_id:         session.user.id,
-      identity_number: profile.identity_number,
-      surname:         profile.last_name,
-      forename:        profile.first_name,
-      forename2: '', forename3: '',
-      gender,
-      date_of_birth: dob_formatted,
-      address1:      profile.address,
-      address2:      profile.suburb_area || '',
-      address3: '', address4: '',
-      postal_code:   profile.postal_code,
-      home_tel_code: '', home_tel_no: '',
-      work_tel_code: '', work_tel_no: '',
-      cell_tel_no:   profile.cell_tel_no || profile.contact_number || '',
-      passport_flag: 'N'
-    };
-
-    const result = await performCreditCheck(applicationId, userData);
-
-    if (result.success) {
-      const creditData = result.creditScore || {};
-      const score      = creditData.score    || 0;
-      const riskType   = creditData.riskType || 'Unknown';
-
-      await supabase
-        .from('loan_applications')
-        .update({ bureau_score_band: score, status: 'BUREAU_OK' })
-        .eq('id', applicationId);
-
-      sessionStorage.setItem('creditScore',       score.toString());
-      sessionStorage.setItem('creditRiskType',    riskType);
-      sessionStorage.setItem('creditCheckPassed', 'true');
-      sessionStorage.setItem('creditData',        JSON.stringify(creditData));
-
-      // Flip button to "done" state
-      isProcessing = false;
-      if (spinner) spinner.style.display = 'none';
-      if (label) {
-        label.style.display   = '';
-        label.innerHTML       = 'Done&nbsp;<i class="fas fa-check"></i>';
-      }
-      button.classList.remove('is-loading');
-      button.classList.add('is-done');
-
-      // Show the result popup
-      _showCreditResultPopup(score, riskType);
-
-    } else {
-      await supabase
-        .from('loan_applications')
-        .update({ status: 'BUREAU_DECLINE' })
-        .eq('id', applicationId);
-
-      window.showToast?.('Credit Check Failed', result.error || 'Unknown error', 'error');
-      _resetCircleButton(button);
-    }
-
-  } catch (error) {
-    console.error('❌ Silent credit check error:', error);
-    window.showToast?.('Error', error.message || 'An unexpected error occurred', 'error');
-    _resetCircleButton(button);
-  }
-};
