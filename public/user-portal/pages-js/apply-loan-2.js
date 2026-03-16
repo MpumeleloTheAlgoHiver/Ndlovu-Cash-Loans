@@ -1,5 +1,24 @@
 import '/user-portal/Services/sessionGuard.js'; // Production auth guard
 
+function normalizeExperianGender(value) {
+  const raw = (value || '').toString().trim().toUpperCase();
+  if (raw === 'M' || raw.startsWith('MALE')) return 'M';
+  if (raw === 'F' || raw.startsWith('FEMALE')) return 'F';
+  return '';
+}
+
+function onlyDigits(value) {
+  return (value || '').toString().replace(/\D/g, '');
+}
+
+function normalizeDateToYYYYMMDD(value) {
+  const text = (value || '').toString().trim();
+  if (!text) return '';
+  if (/^\d{8}$/.test(text)) return text;
+  const digits = text.replace(/\D/g, '');
+  return digits.length === 8 ? digits : '';
+}
+
 window.redirectToProfileForCreditCheck = async function() {
   const btn = document.querySelector('.next-btn');
   if (btn) {
@@ -37,6 +56,16 @@ window.redirectToProfileForCreditCheck = async function() {
         missing.push(label);
       }
     }
+
+    const normalizedGender = normalizeExperianGender(profile?.gender);
+    const idDigits = onlyDigits(profile?.identity_number);
+    const postalDigits = onlyDigits(profile?.postal_code);
+    const dobFormatted = normalizeDateToYYYYMMDD(profile?.date_of_birth);
+
+    if (idDigits.length !== 13) missing.push('ID Number (13 digits)');
+    if (!normalizedGender) missing.push('Gender (M or F)');
+    if (!dobFormatted) missing.push('Date of Birth (valid date)');
+    if (postalDigits.length !== 4) missing.push('Postal Code (4 digits)');
 
     if (missing.length > 0) {
       // Profile incomplete — redirect to profile
@@ -110,25 +139,52 @@ async function runCreditCheckFromProfile(session, profile) {
       sessionStorage.setItem('currentApplicationId', applicationId);
     }
 
+    const normalizedGender = normalizeExperianGender(profile.gender);
+    const idDigits = onlyDigits(profile.identity_number);
+    const postalDigits = onlyDigits(profile.postal_code);
+    const dobFormatted = normalizeDateToYYYYMMDD(profile.date_of_birth);
+    const mobileDigits = onlyDigits(profile.contact_number);
+
+    if (idDigits.length !== 13 || !normalizedGender || !dobFormatted || postalDigits.length !== 4) {
+      const invalid = [];
+      if (idDigits.length !== 13) invalid.push('ID Number must be 13 digits');
+      if (!normalizedGender) invalid.push('Gender must be M or F');
+      if (!dobFormatted) invalid.push('Date of Birth is invalid');
+      if (postalDigits.length !== 4) invalid.push('Postal Code must be 4 digits');
+
+      if (typeof window.showToast === 'function') {
+        window.showToast('Profile Data Invalid', `Please fix in Profile: ${invalid.join(', ')}`, 'warning');
+      }
+
+      sessionStorage.setItem('returnToCreditCheckAfterProfile', 'true');
+      sessionStorage.setItem('showCreditCheckProfileToast', 'true');
+      if (typeof loadPage === 'function') {
+        loadPage('profile');
+      } else {
+        window.location.href = '/user-portal/?page=profile';
+      }
+      return;
+    }
+
     const userData = {
       user_id: session.user.id,
-      identity_number: profile.identity_number,
-      surname: profile.surname,
-      forename: profile.first_name,
+      identity_number: idDigits,
+      surname: (profile.surname || '').toString().trim(),
+      forename: (profile.first_name || '').toString().trim(),
       forename2: '',
       forename3: '',
-      gender: profile.gender,
-      date_of_birth: (profile.date_of_birth || '').replace(/-/g, ''),
-      address1: profile.street_address,
+      gender: normalizedGender,
+      date_of_birth: dobFormatted,
+      address1: (profile.street_address || '').toString().trim(),
       address2: '',
       address3: '',
       address4: '',
-      postal_code: profile.postal_code,
+      postal_code: postalDigits,
       home_tel_code: '',
       home_tel_no: '',
       work_tel_code: '',
       work_tel_no: '',
-      cell_tel_no: profile.contact_number || '',
+      cell_tel_no: mobileDigits,
       passport_flag: 'N'
     };
 
