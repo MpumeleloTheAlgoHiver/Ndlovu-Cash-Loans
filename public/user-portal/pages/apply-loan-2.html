@@ -76,12 +76,50 @@
         </div>
       </div>
       <div class="right-section">
-        <button class="next-btn" onclick="redirectToProfileForCreditCheck()" style="cursor: pointer;">
-          <span>Start Credit Check</span>
-          <i class="fas fa-arrow-right"></i>
+        <div class="credit-circle-outer">
+          <button id="start-credit-check-btn" onclick="startCreditCheckSilent(this)">
+            <span class="scc-label">Start<br>Credit<br>Check</span>
+            <span class="scc-spinner" style="display:none;"><i class="fas fa-sync-alt fa-spin fa-2x"></i></span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="credit-result-popup" style="display:none;" class="credit-result-popup">
+    <div class="cr-card">
+      <div id="cr-banner" class="cr-banner">
+        <div class="cr-banner-icon"><i class="fas fa-shield-check"></i></div>
+      </div>
+
+      <button class="cr-close" onclick="document.getElementById('credit-result-popup').style.display='none'" title="Close"><i class="fas fa-times"></i></button>
+
+      <div class="cr-body">
+        <p class="cr-subtitle">Credit Check Complete</p>
+        <h2 class="cr-headline">Bureau Score</h2>
+
+        <div class="cr-score-ring">
+          <span id="cr-score-value" class="cr-score-number">---</span>
+          <span class="cr-score-unit">pts</span>
+        </div>
+
+        <div id="cr-risk-badge" class="cr-risk-badge">---</div>
+        <p id="cr-risk-desc" class="cr-risk-desc"></p>
+
+        <div class="cr-divider"></div>
+
+        <button class="cr-continue-btn" onclick="window.continueToLoanSelection()">
+          Continue to Loan Selection&nbsp;<i class="fas fa-arrow-right"></i>
         </button>
       </div>
     </div>
+  </div>
+
+  <div id="module-container" class="module-overlay hidden">
+    <div id="module-content" class="module-content"></div>
+    <button class="close-btn" onclick="closeModule()">
+      <i class="fas fa-times"></i>
+    </button>
   </div>
 </body>
 </html>

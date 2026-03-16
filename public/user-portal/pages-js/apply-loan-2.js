@@ -1,237 +1,5 @@
 import '/user-portal/Services/sessionGuard.js'; // Production auth guard
 
-function normalizeExperianGender(value) {
-  const raw = (value || '').toString().trim().toUpperCase();
-  if (raw === 'M' || raw.startsWith('MALE')) return 'M';
-  if (raw === 'F' || raw.startsWith('FEMALE')) return 'F';
-  return '';
-}
-
-function onlyDigits(value) {
-  return (value || '').toString().replace(/\D/g, '');
-}
-
-function normalizeDateToYYYYMMDD(value) {
-  const text = (value || '').toString().trim();
-  if (!text) return '';
-  if (/^\d{8}$/.test(text)) return text;
-  const digits = text.replace(/\D/g, '');
-  return digits.length === 8 ? digits : '';
-}
-
-window.redirectToProfileForCreditCheck = async function() {
-  const btn = document.querySelector('.next-btn');
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Checking profile…</span>';
-  }
-
-  try {
-    const { supabase } = await import('/Services/supabaseClient.js');
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      if (btn) { btn.disabled = false; btn.innerHTML = '<span>Start Credit Check</span><i class="fas fa-arrow-right"></i>'; }
-      return;
-    }
-
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('identity_number, surname, first_name, gender, date_of_birth, street_address, postal_code, contact_number')
-      .eq('id', session.user.id)
-      .single();
-
-    const requiredFields = {
-      identity_number: 'ID Number',
-      first_name: 'First Name',
-      surname: 'Surname',
-      gender: 'Gender',
-      date_of_birth: 'Date of Birth',
-      street_address: 'Street Address',
-      postal_code: 'Postal Code'
-    };
-
-    const missing = [];
-    for (const [key, label] of Object.entries(requiredFields)) {
-      if (!profile || !profile[key] || String(profile[key]).trim() === '') {
-        missing.push(label);
-      }
-    }
-
-    const normalizedGender = normalizeExperianGender(profile?.gender);
-    const idDigits = onlyDigits(profile?.identity_number);
-    const postalDigits = onlyDigits(profile?.postal_code);
-    const dobFormatted = normalizeDateToYYYYMMDD(profile?.date_of_birth);
-
-    if (idDigits.length !== 13) missing.push('ID Number (13 digits)');
-    if (!normalizedGender) missing.push('Gender (M or F)');
-    if (!dobFormatted) missing.push('Date of Birth (valid date)');
-    if (postalDigits.length !== 4) missing.push('Postal Code (4 digits)');
-
-    if (missing.length > 0) {
-      // Profile incomplete — redirect to profile
-      sessionStorage.setItem('returnToCreditCheckAfterProfile', 'true');
-      sessionStorage.setItem('showCreditCheckProfileToast', 'true');
-
-      const missingList = missing.join(', ');
-      if (typeof window.showToast === 'function') {
-        window.showToast(
-          'Profile Incomplete',
-          `Please fill in the following required fields on your Profile before running Experian credit check: ${missingList}`,
-          'warning'
-        );
-      }
-
-      if (typeof loadPage === 'function') {
-        loadPage('profile');
-      } else {
-        window.location.href = '/user-portal/?page=profile';
-      }
-    } else {
-      // Profile complete — run credit check directly
-      if (typeof window.showToast === 'function') {
-        window.showToast('Profile Complete', 'Running Experian credit check…', 'success');
-      }
-      await runCreditCheckFromProfile(session, profile);
-    }
-  } catch (err) {
-    console.error('❌ Error checking profile completeness:', err);
-    if (typeof window.showToast === 'function') {
-      window.showToast('Error', 'Could not verify profile. Please try again.', 'error');
-    }
-  } finally {
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<span>Start Credit Check</span><i class="fas fa-arrow-right"></i>';
-    }
-  }
-};
-
-// Run credit check directly using profile data (no popup)
-async function runCreditCheckFromProfile(session, profile) {
-  const btn = document.querySelector('.next-btn');
-  if (btn) {
-    btn.disabled = true;
-    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> <span>Running Credit Check…</span>';
-  }
-
-  try {
-    const { performCreditCheck } = await import('/Services/dataService.js');
-    const { supabase } = await import('/Services/supabaseClient.js');
-
-    // Create or reuse application
-    let applicationId = sessionStorage.getItem('currentApplicationId');
-    if (!applicationId) {
-      const { data: app, error: appError } = await supabase
-        .from('loan_applications')
-        .insert([{
-          user_id: session.user.id,
-          status: 'BUREAU_CHECKING',
-          amount: 0,
-          term_months: 0,
-          purpose: 'Personal',
-          source: 'USER_PORTAL'
-        }])
-        .select()
-        .single();
-
-      if (appError) throw appError;
-      applicationId = app.id;
-      sessionStorage.setItem('currentApplicationId', applicationId);
-    }
-
-    const normalizedGender = normalizeExperianGender(profile.gender);
-    const idDigits = onlyDigits(profile.identity_number);
-    const postalDigits = onlyDigits(profile.postal_code);
-    const dobFormatted = normalizeDateToYYYYMMDD(profile.date_of_birth);
-    const mobileDigits = onlyDigits(profile.contact_number);
-
-    if (idDigits.length !== 13 || !normalizedGender || !dobFormatted || postalDigits.length !== 4) {
-      const invalid = [];
-      if (idDigits.length !== 13) invalid.push('ID Number must be 13 digits');
-      if (!normalizedGender) invalid.push('Gender must be M or F');
-      if (!dobFormatted) invalid.push('Date of Birth is invalid');
-      if (postalDigits.length !== 4) invalid.push('Postal Code must be 4 digits');
-
-      if (typeof window.showToast === 'function') {
-        window.showToast('Profile Data Invalid', `Please fix in Profile: ${invalid.join(', ')}`, 'warning');
-      }
-
-      sessionStorage.setItem('returnToCreditCheckAfterProfile', 'true');
-      sessionStorage.setItem('showCreditCheckProfileToast', 'true');
-      if (typeof loadPage === 'function') {
-        loadPage('profile');
-      } else {
-        window.location.href = '/user-portal/?page=profile';
-      }
-      return;
-    }
-
-    const userData = {
-      user_id: session.user.id,
-      identity_number: idDigits,
-      surname: (profile.surname || '').toString().trim(),
-      forename: (profile.first_name || '').toString().trim(),
-      forename2: '',
-      forename3: '',
-      gender: normalizedGender,
-      date_of_birth: dobFormatted,
-      address1: (profile.street_address || '').toString().trim(),
-      address2: '',
-      address3: '',
-      address4: '',
-      postal_code: postalDigits,
-      home_tel_code: '',
-      home_tel_no: '',
-      work_tel_code: '',
-      work_tel_no: '',
-      cell_tel_no: mobileDigits,
-      passport_flag: 'N'
-    };
-
-    const result = await performCreditCheck(applicationId, userData);
-
-    if (result && result.success) {
-      const score = result.creditScore?.score || result.score || 0;
-      sessionStorage.setItem('creditCheckPassed', 'true');
-      sessionStorage.setItem('creditScore', score);
-
-      if (typeof window.showToast === 'function') {
-        window.showToast('Credit Check Passed', `Experian score: ${score}. Proceeding to loan selection.`, 'success');
-      }
-
-      // Update button to green "Continue"
-      if (btn) {
-        btn.innerHTML = `<i class="fas fa-check-circle"></i><span>Continue to Loan Selection (${score})</span>`;
-        btn.style.background = 'linear-gradient(135deg, #1b5e20 0%, #00c853 100%)';
-        btn.style.color = '#ffffff';
-        btn.disabled = false;
-        btn.onclick = () => {
-          if (typeof loadPage === 'function') loadPage('apply-loan-3');
-          else window.location.href = '/user-portal/?page=apply-loan-3';
-        };
-      }
-    } else {
-      const errMsg = result?.error || 'Unknown error';
-      if (typeof window.showToast === 'function') {
-        window.showToast('Credit Check Failed', errMsg, 'error');
-      }
-      if (btn) {
-        btn.disabled = false;
-        btn.innerHTML = '<span>Start Credit Check</span><i class="fas fa-arrow-right"></i>';
-      }
-    }
-  } catch (err) {
-    console.error('❌ Credit check error:', err);
-    if (typeof window.showToast === 'function') {
-      window.showToast('Credit Check Error', err.message || 'Something went wrong. Please try again.', 'error');
-    }
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '<span>Start Credit Check</span><i class="fas fa-arrow-right"></i>';
-    }
-  }
-}
-
 // Navigation function for step buttons
 window.goToStep = function(step) {
   // Guard: Cannot go to step 3 without completing credit check
@@ -330,22 +98,25 @@ async function checkCreditCheckStatus() {
       }
     }
     
-    // Update main page button if credit check exists
+    // Update circle button if credit check already exists
     if (hasExistingCheck || creditCheckPassed === 'true') {
-      const mainButton = document.querySelector('.next-btn');
-      if (mainButton) {
-        const score = existingScore || creditScore || 'Ready';
-        mainButton.innerHTML = `
-          <i class="fas fa-check-circle"></i>
-          <span>Continue to Loan Selection (${score})</span>
-        `;
-        mainButton.style.background = 'linear-gradient(135deg, #1b5e20 0%, #00c853 100%)';
-        mainButton.style.color = '#ffffff';
-        mainButton.style.cursor = 'pointer';
-        mainButton.disabled = false;
-        mainButton.removeAttribute('aria-disabled');
-        mainButton.classList.remove('button-disabled');
-        mainButton.onclick = () => {
+      const circleBtn = document.getElementById('start-credit-check-btn');
+      if (circleBtn) {
+        // Stop pulse, go green, change label to "Next"
+        circleBtn.classList.remove('is-loading');
+        circleBtn.classList.add('is-done');
+        circleBtn.style.animation = 'none';
+
+        const label = circleBtn.querySelector('.scc-label');
+        const spinner = circleBtn.querySelector('.scc-spinner');
+        if (spinner) spinner.style.display = 'none';
+        if (label) {
+          label.innerHTML = 'Next&nbsp;<i class="fas fa-arrow-right"></i>';
+        }
+
+        circleBtn.disabled = false;
+        circleBtn.onclick = () => {
+          sessionStorage.setItem('creditCheckPassed', 'true');
           if (typeof loadPage === 'function') {
             loadPage('apply-loan-3');
           } else {
@@ -353,14 +124,14 @@ async function checkCreditCheckStatus() {
           }
         };
       }
-      
+
       // Mark step 2 as completed
       const step2 = document.querySelector('.step.active');
       if (step2) {
         step2.classList.add('completed');
       }
-      
-      console.log('✅ Credit check already completed');
+
+      console.log('✅ Credit check already completed — button set to Next');
     }
   } catch (error) {
     console.error('❌ Error checking credit status:', error);

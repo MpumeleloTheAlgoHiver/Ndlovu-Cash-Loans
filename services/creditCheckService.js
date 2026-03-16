@@ -4,12 +4,14 @@ const xml2js = require('xml2js');
 const AdmZip = require('adm-zip');
 
 // Experian API Configuration
+const COMPANY_ORIGIN = process.env.COMPANY_NAME || 'YourCompany';
+
 const EXPERIAN_CONFIG = {
     url: 'https://apis.experian.co.za/NormalSearchService', // Experian South Africa SOAP endpoint, dont forget to put these in env
     username: '32389-api',
     password: '9N=v@ZQapik1',
     version: '1.0',
-    origin: 'Zwane',
+    origin: COMPANY_ORIGIN,
     origin_version: '0.0.1',
     testMode: false // Disabled - using real Experian API
 };
@@ -138,12 +140,7 @@ async function parseExperianResponse(soapResponse) {
         const retdata = transReply?.retData || transReply?.retdata;
         
         if (!retdata) {
-            // Extract Experian error details if present
-            const errCode = transReply?.errorCode || transReply?.ErrorCode || transReply?.errCode || '';
-            const errMsg = transReply?.errorMsg || transReply?.ErrorMsg || transReply?.errMsg || transReply?.error || '';
-            const resultCode = transReply?.resultCode || transReply?.ResultCode || '';
-            console.error('⚠️ Experian transReply (no retdata):', JSON.stringify(transReply, null, 2));
-            throw new Error(`No retdata in Experian response. ErrorCode: ${errCode}, ErrorMsg: ${errMsg}, ResultCode: ${resultCode}`);
+            throw new Error('No retdata found in response');
         }
         
         return retdata;
@@ -405,9 +402,7 @@ async function performCreditCheck(userData, applicationId, authToken = null) {
         });
         
         console.log('📤 Sending request to Experian...');
-        console.log('📋 userData keys:', Object.keys(userData));
-        console.log('📋 Key fields → identity_number:', userData.identity_number, '| gender:', userData.gender, '| dob:', userData.date_of_birth, '| address1:', userData.address1, '| postal_code:', userData.postal_code);
-        console.log('📋 SOAP Request (first 1500 chars):', soapRequest.substring(0, 1500));
+        console.log('📋 SOAP Request:', soapRequest);
         
         // Send SOAP request to Experian
         const response = await axios.post(EXPERIAN_CONFIG.url, soapRequest, {

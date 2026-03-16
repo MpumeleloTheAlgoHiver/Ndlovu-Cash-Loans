@@ -1,6 +1,5 @@
 import { supabase } from './supabaseClient.js';
 import { notifyApplicationStatusChange } from './notificationService.js';
-import { calculateLoanRepaymentBreakdown, normalizeAnnualRate } from '../shared/loan-calculations.js';
 
 function resolveFirstPaymentDate(source = {}) {
     const offerDetails = source.offer_details || {};
@@ -141,12 +140,8 @@ export async function updateApplicationStatus(applicationId, newStatus) {
     }
     
         // Extract loan details from offer_details if available
-                const offerDetails = updatedApp.offer_details || {};
-                const annualRate = normalizeAnnualRate(
-                    offerDetails.interest_rate
-                    ?? updatedApp.offer_interest_rate
-                    ?? 0.30
-                );
+        const offerDetails = updatedApp.offer_details || {};
+        const interestRate = offerDetails.interest_rate || 0.025; // Default 2.5% monthly
 
         const resolvedFirstPayment = resolveFirstPaymentDate(updatedApp);
         const nextPaymentDate = resolvedFirstPayment
@@ -158,22 +153,23 @@ export async function updateApplicationStatus(applicationId, newStatus) {
     // Calculate monthly payment
     const principal = parseFloat(updatedApp.amount);
     const termMonths = parseInt(updatedApp.term_months);
-        const breakdown = calculateLoanRepaymentBreakdown({
-            principal,
-            annualRate,
-            termMonths
-        });
-        const monthlyPayment = breakdown.monthlyPayment;
+    const rate = parseFloat(interestRate);
+    let monthlyPayment;
+    if (rate === 0) {
+      monthlyPayment = principal / termMonths;
+    } else {
+      const factor = Math.pow(1 + rate, termMonths);
+      monthlyPayment = principal * (rate * factor) / (factor - 1);
+    }
     
     // Create loan record
         const loanBase = {
             application_id: applicationId,
             user_id: updatedApp.user_id,
             principal_amount: principal,
-            interest_rate: annualRate,
+            interest_rate: rate,
             term_months: termMonths,
             monthly_payment: monthlyPayment,
-            total_repayment: breakdown.totalRepayment,
             status: 'active',
             start_date: new Date().toISOString(),
             next_payment_date: nextPaymentDate.toISOString(),
@@ -270,12 +266,8 @@ export async function createLoanFromApplication(applicationId) {
     }
     
     // Extract loan details
-        const offerDetails = app.offer_details || {};
-        const annualRate = normalizeAnnualRate(
-            offerDetails.interest_rate
-            ?? app.offer_interest_rate
-            ?? 0.30
-        );
+    const offerDetails = app.offer_details || {};
+    const interestRate = offerDetails.interest_rate || 0.025;
     const resolvedFirstPayment = resolveFirstPaymentDate(app);
     const nextPaymentDate = resolvedFirstPayment
         ? new Date(resolvedFirstPayment)
@@ -286,22 +278,23 @@ export async function createLoanFromApplication(applicationId) {
     // Calculate monthly payment
     const principal = parseFloat(app.amount);
     const termMonths = parseInt(app.term_months);
-        const breakdown = calculateLoanRepaymentBreakdown({
-            principal,
-            annualRate,
-            termMonths
-        });
-        const monthlyPayment = breakdown.monthlyPayment;
+    const rate = parseFloat(interestRate);
+    let monthlyPayment;
+    if (rate === 0) {
+      monthlyPayment = principal / termMonths;
+    } else {
+      const factor = Math.pow(1 + rate, termMonths);
+      monthlyPayment = principal * (rate * factor) / (factor - 1);
+    }
 
     // Create loan record
     const baseLoanData = {
         application_id: applicationId,
         user_id: app.user_id,
         principal_amount: principal,
-        interest_rate: annualRate,
+        interest_rate: rate,
         term_months: termMonths,
         monthly_payment: monthlyPayment,
-        total_repayment: breakdown.totalRepayment,
         status: 'active',
         start_date: new Date().toISOString(),
         next_payment_date: nextPaymentDate.toISOString(),
