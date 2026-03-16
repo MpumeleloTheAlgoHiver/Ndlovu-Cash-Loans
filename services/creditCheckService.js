@@ -140,7 +140,12 @@ async function parseExperianResponse(soapResponse) {
         const retdata = transReply?.retData || transReply?.retdata;
         
         if (!retdata) {
-            throw new Error('No retdata found in response');
+            // Extract Experian error details if present
+            const errCode = transReply?.errorCode || transReply?.ErrorCode || transReply?.errCode || '';
+            const errMsg = transReply?.errorMsg || transReply?.ErrorMsg || transReply?.errMsg || transReply?.error || '';
+            const resultCode = transReply?.resultCode || transReply?.ResultCode || '';
+            console.error('⚠️ Experian transReply (no retdata):', JSON.stringify(transReply, null, 2));
+            throw new Error(`No retdata in Experian response. ErrorCode: ${errCode}, ErrorMsg: ${errMsg}, ResultCode: ${resultCode}`);
         }
         
         return retdata;
@@ -402,7 +407,9 @@ async function performCreditCheck(userData, applicationId, authToken = null) {
         });
         
         console.log('📤 Sending request to Experian...');
-        console.log('📋 SOAP Request:', soapRequest);
+        console.log('📋 userData keys:', Object.keys(userData));
+        console.log('📋 Key fields → identity_number:', userData.identity_number, '| gender:', userData.gender, '| dob:', userData.date_of_birth, '| address1:', userData.address1, '| postal_code:', userData.postal_code);
+        console.log('📋 SOAP Request (first 1500 chars):', soapRequest.substring(0, 1500));
         
         // Send SOAP request to Experian
         const response = await axios.post(EXPERIAN_CONFIG.url, soapRequest, {
