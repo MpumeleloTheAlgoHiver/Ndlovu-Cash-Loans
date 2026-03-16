@@ -242,10 +242,6 @@ function renderProfileTab() {
             <input type="text" id="surname" value="${currentUserProfile.surname || ''}" placeholder="Doe">
           </div>
           <div class="form-group">
-            <label for="full_name">Full Name</label>
-            <input type="text" id="full_name" value="${currentUserProfile.full_name || ''}" placeholder="Enter your full name" required>
-          </div>
-          <div class="form-group">
             <label for="gender">Gender</label>
             <select id="gender">
               <option value="">Select</option>
@@ -309,6 +305,14 @@ function renderProfileTab() {
   if (backToCreditCheckBtn) {
     backToCreditCheckBtn.addEventListener('click', returnToCreditCheckStep);
   }
+
+  if (sessionStorage.getItem('showCreditCheckProfileToast') === 'true') {
+    sessionStorage.removeItem('showCreditCheckProfileToast');
+    if (typeof window.showToast === 'function') {
+      window.showToast('Complete Credit Check', 'Please fill in details to complete credit check.', 'info');
+    }
+  }
+
   setupAvatarPlaceholderHover(avatarAsset);
 }
 
@@ -1308,13 +1312,16 @@ async function handleProfileUpdate(e) {
   const normalizedGender = selectedGender
     ? (selectedGender.toLowerCase().startsWith('m') ? 'M' : selectedGender.toLowerCase().startsWith('f') ? 'F' : null)
     : null;
+  const firstName = document.getElementById('first_name').value.trim();
+  const surname = document.getElementById('surname').value.trim();
+  const derivedFullName = `${firstName} ${surname}`.trim();
 
   const profileData = {
-    full_name: document.getElementById('full_name').value.trim(),
+    full_name: derivedFullName,
     contact_number: document.getElementById('contact_number').value.trim(),
     identity_number: document.getElementById('identity_number').value.trim(),
-    surname: document.getElementById('surname').value.trim(),
-    first_name: document.getElementById('first_name').value.trim(),
+    surname,
+    first_name: firstName,
     gender: normalizedGender,
     date_of_birth: document.getElementById('date_of_birth').value || null,
     street_address: document.getElementById('street_address').value.trim(),
@@ -1324,8 +1331,8 @@ async function handleProfileUpdate(e) {
   };
   
   // Validate inputs
-  if (!profileData.full_name) {
-    alert('❌ Full name is required');
+  if (!profileData.first_name || !profileData.surname) {
+    alert('❌ First Name and Surname are required');
     btn.disabled = false;
     btn.innerHTML = originalContent;
     return;

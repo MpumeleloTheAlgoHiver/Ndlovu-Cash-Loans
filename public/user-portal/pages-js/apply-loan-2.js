@@ -2,9 +2,10 @@ import '/user-portal/Services/sessionGuard.js'; // Production auth guard
 
 window.redirectToProfileForCreditCheck = function() {
   sessionStorage.setItem('returnToCreditCheckAfterProfile', 'true');
+  sessionStorage.setItem('showCreditCheckProfileToast', 'true');
 
   if (typeof window.showToast === 'function') {
-    window.showToast('Complete Profile First', 'Please complete your profile details before running Experian credit check.', 'info');
+    window.showToast('Complete Profile First', 'Please fill in details to complete credit check.', 'info');
   }
 
   if (typeof loadPage === 'function') {
