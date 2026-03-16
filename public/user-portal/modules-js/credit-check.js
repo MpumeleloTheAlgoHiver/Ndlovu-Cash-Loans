@@ -557,9 +557,15 @@ async function runCreditCheck() {
     
     console.log('📋 Form values collected');
     
-    // Validation
-    if (!identity_number || !surname || !forename || !gender || !date_of_birth || !address1 || !postal_code) {
-      alert('⚠️ Please fill in all required fields marked with *');
+    // Validation — show exactly which fields are missing
+    const missingFields = getMissingRequiredCreditFields();
+    if (missingFields.length > 0) {
+      const missingLabels = missingFields.map(f => f.label).join(', ');
+      if (typeof window.showToast === 'function') {
+        window.showToast('Missing Fields', `Please fill in: ${missingLabels}`, 'warning');
+      } else {
+        alert(`⚠️ Please fill in: ${missingLabels}`);
+      }
       isProcessing = false;
       button.disabled = false;
       button.style.opacity = '1';

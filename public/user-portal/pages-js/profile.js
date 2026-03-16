@@ -5,16 +5,6 @@ let supabase;
 let currentUserProfile = null;
 let currentFinancialProfile = null;
 let isUploading = false;
-const RETURN_TO_CREDIT_CHECK_KEY = 'returnToCreditCheckAfterProfile';
-
-function returnToCreditCheckStep() {
-  sessionStorage.removeItem(RETURN_TO_CREDIT_CHECK_KEY);
-  if (typeof window.loadPage === 'function') {
-    window.loadPage('apply-loan-2');
-  } else {
-    window.location.href = '/user-portal/?page=apply-loan-2';
-  }
-}
 
 // Centralized handler to flip completion flags and unlock navigation once
 function handleProfileCompletionUnlock(hasFinancial = false, hasDeclarations = false) {
@@ -230,48 +220,56 @@ function renderProfileTab() {
         <!-- Personal Details Form -->
         <div class="form-grid">
           <div class="form-group">
-            <label for="identity_number">ID Number</label>
-            <input type="text" id="identity_number" value="${currentUserProfile.identity_number || ''}" placeholder="13-digit SA ID" maxlength="13">
-          </div>
-          <div class="form-group">
             <label for="first_name">First Name</label>
-            <input type="text" id="first_name" value="${currentUserProfile.first_name || ''}" placeholder="John">
+            <input type="text" id="first_name" value="${currentUserProfile.first_name || ''}" placeholder="Enter your first name" required>
           </div>
           <div class="form-group">
-            <label for="surname">Surname</label>
-            <input type="text" id="surname" value="${currentUserProfile.surname || ''}" placeholder="Doe">
+            <label for="last_name">Surname</label>
+            <input type="text" id="last_name" value="${currentUserProfile.last_name || ''}" placeholder="Enter your surname" required>
           </div>
           <div class="form-group">
-            <label for="gender">Gender</label>
-            <select id="gender">
-              <option value="">Select</option>
-              <option value="M" ${['M', 'm', 'male', 'Male'].includes(currentUserProfile.gender) ? 'selected' : ''}>Male</option>
-              <option value="F" ${['F', 'f', 'female', 'Female'].includes(currentUserProfile.gender) ? 'selected' : ''}>Female</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="date_of_birth">Date of Birth</label>
-            <input type="date" id="date_of_birth" value="${currentUserProfile.date_of_birth || ''}">
+            <label for="full_name">Full Name</label>
+            <input type="text" id="full_name" value="${currentUserProfile.full_name || ''}" placeholder="Enter your full name" required>
           </div>
           <div class="form-group">
             <label for="email">Email Address</label>
             <input type="email" id="email" value="${currentUserProfile.email || ''}" placeholder="your@email.com" disabled>
           </div>
           <div class="form-group">
-            <label for="contact_number">Cell Phone</label>
-            <input type="text" id="contact_number" value="${currentUserProfile.contact_number || ''}" placeholder="0XX XXX XXXX">
+            <label for="contact_number">Contact Number</label>
+            <input type="text" id="contact_number" value="${currentUserProfile.contact_number || ''}" placeholder="+27 XX XXX XXXX">
           </div>
           <div class="form-group">
-            <label for="street_address">Street Address</label>
-            <input type="text" id="street_address" value="${currentUserProfile.street_address || ''}" placeholder="123 Main St, Unit 4">
+            <label for="identity_number">ID Number</label>
+            <input type="text" id="identity_number" value="${currentUserProfile.identity_number || ''}" placeholder="Enter your SA ID number" maxlength="20" autocomplete="off">
           </div>
           <div class="form-group">
-            <label for="suburb_area">Suburb / Area</label>
-            <input type="text" id="suburb_area" value="${currentUserProfile.suburb_area || ''}" placeholder="Sandton">
+            <label for="gender">Gender</label>
+            <select id="gender">
+              <option value="">Select gender</option>
+              <option value="M" ${(currentUserProfile.gender || '').toUpperCase() === 'M' ? 'selected' : ''}>Male</option>
+              <option value="F" ${(currentUserProfile.gender || '').toUpperCase() === 'F' ? 'selected' : ''}>Female</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="date_of_birth">Date of Birth</label>
+            <input type="date" id="date_of_birth" value="${currentUserProfile.date_of_birth ? String(currentUserProfile.date_of_birth).substring(0, 10) : ''}">
+          </div>
+          <div class="form-group">
+            <label for="address">Street Address</label>
+            <input type="text" id="address" value="${currentUserProfile.address || ''}" placeholder="Street address">
           </div>
           <div class="form-group">
             <label for="postal_code">Postal Code</label>
-            <input type="text" id="postal_code" value="${currentUserProfile.postal_code || ''}" placeholder="0123" maxlength="4">
+            <input type="text" id="postal_code" value="${currentUserProfile.postal_code || ''}" placeholder="e.g. 0123" maxlength="4">
+          </div>
+          <div class="form-group">
+            <label for="suburb_area">Suburb / Area</label>
+            <input type="text" id="suburb_area" value="${currentUserProfile.suburb_area || ''}" placeholder="Suburb or area">
+          </div>
+          <div class="form-group">
+            <label for="cell_tel_no">Cell Phone Number</label>
+            <input type="text" id="cell_tel_no" value="${currentUserProfile.cell_tel_no || currentUserProfile.contact_number || ''}" placeholder="e.g. 0821234567" maxlength="10">
           </div>
           <div class="form-group">
             <label for="user_id">User ID</label>
@@ -285,11 +283,6 @@ function renderProfileTab() {
         </div>
         
         <div class="btn-container">
-          ${sessionStorage.getItem(RETURN_TO_CREDIT_CHECK_KEY) === 'true' ? `
-          <button type="button" id="back-to-credit-check-btn" class="btn-secondary">
-            <i class="fa-solid fa-arrow-left"></i> Back to Credit Check
-          </button>
-          ` : ''}
           <button type="submit" id="save-profile-btn" class="btn-primary">
             <i class="fa-solid fa-save"></i> Save Changes
           </button>
@@ -301,18 +294,6 @@ function renderProfileTab() {
   // Attach form listeners
   document.getElementById('profile-form').addEventListener('submit', handleProfileUpdate);
   document.getElementById('avatar-upload').addEventListener('change', handleAvatarUpload);
-  const backToCreditCheckBtn = document.getElementById('back-to-credit-check-btn');
-  if (backToCreditCheckBtn) {
-    backToCreditCheckBtn.addEventListener('click', returnToCreditCheckStep);
-  }
-
-  if (sessionStorage.getItem('showCreditCheckProfileToast') === 'true') {
-    sessionStorage.removeItem('showCreditCheckProfileToast');
-    if (typeof window.showToast === 'function') {
-      window.showToast('Complete Credit Check', 'Please fill in details to complete credit check.', 'info');
-    }
-  }
-
   setupAvatarPlaceholderHover(avatarAsset);
 }
 
@@ -1249,7 +1230,14 @@ async function handleDeclarationsSave(e) {
     handleProfileCompletionUnlock(hasFinancial, hasDeclarations);
 
     showNotification('✅ Declarations saved successfully!', 'success');
-    setTimeout(() => renderDeclarationsTab(), 400);
+    
+    setTimeout(() => {
+      if (!currentUserProfile.isProfileComplete) {
+        renderDeclarationsTab();
+      }
+    }, 800);
+
+
   } catch (err) {
     console.error('Error saving declarations:', err);
     showNotification('❌ Failed to save declarations', 'error');
@@ -1301,6 +1289,14 @@ function attachTabListeners() {
   console.log('✅ Tab listeners attached');
 }
 
+function switchToTab(tabName) {
+  const targetTab = document.querySelector(`.tab-button[data-tab="${tabName}"]`);
+  if (targetTab) {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    targetTab.click();
+  }
+}
+
 async function handleProfileUpdate(e) {
   e.preventDefault();
   const btn = document.getElementById('save-profile-btn');
@@ -1308,45 +1304,28 @@ async function handleProfileUpdate(e) {
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving...';
   
-  const selectedGender = document.getElementById('gender').value;
-  const normalizedGender = selectedGender
-    ? (selectedGender.toLowerCase().startsWith('m') ? 'M' : selectedGender.toLowerCase().startsWith('f') ? 'F' : null)
-    : null;
-  const firstName = document.getElementById('first_name').value.trim();
-  const surname = document.getElementById('surname').value.trim();
-  const derivedFullName = `${firstName} ${surname}`.trim();
+  // Use whichever phone field has a value; save both columns identically
+  const phoneValue = (document.getElementById('contact_number')?.value.trim()
+                   || document.getElementById('cell_tel_no')?.value.trim()) || null;
 
   const profileData = {
-    full_name: derivedFullName,
-    contact_number: document.getElementById('contact_number').value.trim(),
-    identity_number: document.getElementById('identity_number').value.trim(),
-    surname,
-    first_name: firstName,
-    gender: normalizedGender,
-    date_of_birth: document.getElementById('date_of_birth').value || null,
-    street_address: document.getElementById('street_address').value.trim(),
-    postal_code: document.getElementById('postal_code').value.trim(),
-    suburb_area: document.getElementById('suburb_area').value.trim(),
+    first_name: document.getElementById('first_name')?.value.trim() || null,
+    last_name: document.getElementById('last_name')?.value.trim() || null,
+    full_name: document.getElementById('full_name').value.trim(),
+    contact_number: phoneValue,
+    identity_number: document.getElementById('identity_number')?.value.trim() || null,
+    gender: document.getElementById('gender')?.value || null,
+    date_of_birth: document.getElementById('date_of_birth')?.value || null,
+    address: document.getElementById('address')?.value.trim() || null,
+    postal_code: document.getElementById('postal_code')?.value.trim() || null,
+    suburb_area: document.getElementById('suburb_area')?.value.trim() || null,
+    cell_tel_no: phoneValue,
     updated_at: new Date().toISOString()
   };
   
   // Validate inputs
-  if (!profileData.first_name || !profileData.surname) {
-    alert('❌ First Name and Surname are required');
-    btn.disabled = false;
-    btn.innerHTML = originalContent;
-    return;
-  }
-
-  // Basic validation for bureau fields (warn, don't block)
-  if (profileData.identity_number && profileData.identity_number.length !== 13) {
-    alert('⚠️ ID Number must be exactly 13 digits');
-    btn.disabled = false;
-    btn.innerHTML = originalContent;
-    return;
-  }
-  if (profileData.postal_code && profileData.postal_code.length !== 0 && profileData.postal_code.length !== 4) {
-    alert('⚠️ Postal Code must be exactly 4 digits');
+  if (!profileData.full_name) {
+    alert('❌ Full name is required');
     btn.disabled = false;
     btn.innerHTML = originalContent;
     return;
@@ -1366,16 +1345,17 @@ async function handleProfileUpdate(e) {
     if (error) throw error;
     
     // Update local state
+    currentUserProfile.first_name = profileData.first_name;
+    currentUserProfile.last_name = profileData.last_name;
     currentUserProfile.full_name = profileData.full_name;
     currentUserProfile.contact_number = profileData.contact_number;
     currentUserProfile.identity_number = profileData.identity_number;
-    currentUserProfile.surname = profileData.surname;
-    currentUserProfile.first_name = profileData.first_name;
     currentUserProfile.gender = profileData.gender;
     currentUserProfile.date_of_birth = profileData.date_of_birth;
-    currentUserProfile.street_address = profileData.street_address;
+    currentUserProfile.address = profileData.address;
     currentUserProfile.postal_code = profileData.postal_code;
     currentUserProfile.suburb_area = profileData.suburb_area;
+    currentUserProfile.cell_tel_no = profileData.cell_tel_no;
     
     // Create notification for account update
     const { notifyAccountUpdated } = await import('/Services/notificationService.js');
@@ -1406,11 +1386,7 @@ async function handleProfileUpdate(e) {
     // Show success message
     showNotification('✅ Profile updated successfully!', 'success');
 
-    if (sessionStorage.getItem(RETURN_TO_CREDIT_CHECK_KEY) === 'true') {
-      showNotification('↩ Returning to Credit Check step...', 'info');
-      setTimeout(() => returnToCreditCheckStep(), 650);
-      return;
-    }
+    setTimeout(() => switchToTab('financial'), 800);
     
     // Refresh the tab to show updated info
     setTimeout(() => renderProfileTab(), 500);
@@ -1512,18 +1488,9 @@ async function handleFinancialUpdate(e) {
       const affordabilityThreshold = totalIncome * 0.20;
       affordabilityRatio = totalIncome > 0 ? affordabilityThreshold.toFixed(2) : null;
       
-      // Fallback max loan calculation (fee-inclusive, 1 month @ 30% annual interest + 15% initiation)
-      const totalAnnualRate = 0.30;
-      const initiationRate = 0.15;
-      const monthlyServiceFee = 60;
-      const interestAnnualRate = totalAnnualRate; // Interest is the full annual rate
-      const monthlyRate = interestAnnualRate / 12;
-      const perRandMonthly = monthlyRate > 0
-        ? (monthlyRate * Math.pow(1 + monthlyRate, 1)) / (Math.pow(1 + monthlyRate, 1) - 1)
-        : 1;
-      const principalCoefficient = perRandMonthly + initiationRate;
-      const availableForPrincipal = Math.max(affordabilityThreshold - monthlyServiceFee, 0);
-      const fallbackMaxLoan = principalCoefficient > 0 ? (availableForPrincipal / principalCoefficient) : 0;
+      // Fallback max loan calculation (1 month at 20% APR)
+      const monthlyRate = (0.20 / 12);
+      const fallbackMaxLoan = affordabilityThreshold * ((1 - Math.pow(1 + monthlyRate, -1)) / monthlyRate);
       maxLoanAmount = totalIncome > 0 ? fallbackMaxLoan.toFixed(2) : null;
     }
     
@@ -1589,8 +1556,11 @@ async function handleFinancialUpdate(e) {
     
     showNotification('✅ Financial information saved successfully!', 'success');
     
-    // Refresh the tab to show updated info
-    setTimeout(() => renderFinancialTab(), 500);
+    setTimeout(() => {
+      if (!currentUserProfile.isProfileComplete) {
+        switchToTab('declarations');
+      }
+    }, 800);
     
   } catch (error) {
     console.error('Financial update error:', error);
