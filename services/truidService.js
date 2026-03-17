@@ -72,32 +72,18 @@ class TruIDClient {
   buildConsumerUrl(consentId) {
     if (!consentId) return null;
     const scheme = readEnv('TRUID_SCHEME') || 'https';
-    const domain = readEnv('TRUID_DOMAIN') || 'hello.truidconnect.io';
-    const host = domain.startsWith('www.') ? domain : `www.${domain}`;
-    return `${scheme}://${host}/consents/${consentId}`;
-  }
-
-  normalizeConsumerUrl(url) {
-    if (!url || typeof url !== 'string') return url;
-    const scheme = readEnv('TRUID_SCHEME') || 'https';
-    const domain = readEnv('TRUID_DOMAIN');
-    if (!domain) return url;
-    try {
-      const parsed = new URL(url);
-      const host = domain.startsWith('www.') ? domain : `www.${domain}`;
-      parsed.protocol = `${scheme}:`;
-      parsed.host = host;
-      return parsed.toString();
-    } catch (_) {
-      return url;
-    }
+    // TruID consumer widget lives at hello.truidconnect.io – never rewrite to www
+    const domain = readEnv('TRUID_CONSUMER_DOMAIN') || 'hello.truidconnect.io';
+    return `${scheme}://${domain}/consents/${consentId}`;
   }
 
   resolveConsumerUrl(responseData, consentId, locationHeader) {
-    if (responseData?.consumerUrl) return this.normalizeConsumerUrl(responseData.consumerUrl);
-    if (responseData?.links?.consumer) return this.normalizeConsumerUrl(responseData.links.consumer);
-    if (responseData?.inviteUrl) return this.normalizeConsumerUrl(responseData.inviteUrl);
-    if (locationHeader) return this.normalizeConsumerUrl(locationHeader);
+    // Prefer whatever URL TruID's API returned — never rewrite the host
+    if (responseData?.consumerUrl) return responseData.consumerUrl;
+    if (responseData?.links?.consumer) return responseData.links.consumer;
+    if (responseData?.inviteUrl) return responseData.inviteUrl;
+    if (locationHeader) return locationHeader;
+    // Last resort: build from consentId
     return this.buildConsumerUrl(consentId);
   }
 
