@@ -265,6 +265,133 @@ async function initKycButton() {
   await refreshKycStatus();
 }
 
+// --- Profile Guard Modal ---
+function showProfileGuardModal(missingFields, profile, supabase, userId) {
+  return new Promise((resolve) => {
+    // Remove existing modal if any
+    const existing = document.getElementById('profile-guard-modal');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'profile-guard-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:10000;display:flex;align-items:center;justify-content:center;animation:fadeIn .25s ease;';
+
+    const card = document.createElement('div');
+    card.style.cssText = 'background:#fff;border-radius:16px;padding:28px 28px 20px;max-width:440px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,0.25);position:relative;max-height:90vh;overflow-y:auto;';
+
+    let formFieldsHTML = '';
+    missingFields.forEach(f => {
+      const existingVal = profile?.[f.key] || (f.fallback ? profile?.[f.fallback] : '') || '';
+      if (f.type === 'select') {
+        const opts = f.options.map(o => `<option value="${o.value}" ${existingVal === o.value ? 'selected' : ''}>${o.text}</option>`).join('');
+        formFieldsHTML += `
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-weight:500;margin-bottom:5px;font-size:.9rem;color:#374151;">${f.label} <span style="color:#ef4444;">*</span></label>
+            <select data-field="${f.key}" style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.95rem;background:#fff;" required>${opts}</select>
+          </div>`;
+      } else {
+        formFieldsHTML += `
+          <div style="margin-bottom:14px;">
+            <label style="display:block;font-weight:500;margin-bottom:5px;font-size:.9rem;color:#374151;">${f.label} <span style="color:#ef4444;">*</span></label>
+            <input data-field="${f.key}" type="${f.type}" value="${existingVal}" placeholder="${f.placeholder || ''}" ${f.maxlength ? `maxlength="${f.maxlength}"` : ''} style="width:100%;padding:10px 12px;border:1px solid #d1d5db;border-radius:8px;font-size:.95rem;box-sizing:border-box;" required />
+          </div>`;
+      }
+    });
+
+    card.innerHTML = `
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
+        <div style="width:40px;height:40px;border-radius:10px;background:#fef3c7;display:flex;align-items:center;justify-content:center;">
+          <i class="fas fa-user-edit" style="color:#d97706;font-size:18px;"></i>
+        </div>
+        <div>
+          <h3 style="margin:0;font-size:1.1rem;color:#111827;">Complete Your Profile</h3>
+          <p style="margin:2px 0 0;font-size:.85rem;color:#6b7280;">Fill in the remaining details to proceed.</p>
+        </div>
+      </div>
+      <form id="profile-guard-form">
+        ${formFieldsHTML}
+        <div style="display:flex;gap:10px;margin-top:18px;">
+          <button type="button" id="pgm-cancel" style="flex:1;padding:11px;border-radius:10px;border:1px solid #d1d5db;background:#fff;font-size:.95rem;cursor:pointer;color:#374151;">Later</button>
+          <button type="submit" id="pgm-save" style="flex:1;padding:11px;border-radius:10px;border:none;background:#111827;color:#f9fafb;font-size:.95rem;font-weight:500;cursor:pointer;">Save & Continue</button>
+        </div>
+      </form>
+    `;
+
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    // Close on overlay click
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) {
+        overlay.remove();
+        resolve(false);
+      }
+    });
+
+    // Cancel button
+    card.querySelector('#pgm-cancel').addEventListener('click', () => {
+      overlay.remove();
+      resolve(false);
+    });
+
+    // Save button
+    card.querySelector('#profile-guard-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const saveBtn = card.querySelector('#pgm-save');
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+
+      const updateData = { updated_at: new Date().toISOString() };
+      let valid = true;
+
+      missingFields.forEach(f => {
+        const el = card.querySelector(`[data-field="${f.key}"]`);
+        const val = el?.value?.trim() || '';
+        if (!val) {
+          el.style.borderColor = '#ef4444';
+          valid = false;
+        } else {
+          el.style.borderColor = '#d1d5db';
+          updateData[f.key] = val;
+          // Also sync alternative column names
+          if (f.key === 'last_name') updateData.surname = val;
+          if (f.key === 'address') updateData.street_address = val;
+        }
+      });
+
+      if (!valid) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save & Continue';
+        return;
+      }
+
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update(updateData)
+          .eq('id', userId);
+
+        if (error) throw error;
+
+        overlay.remove();
+        if (typeof window.showToast === 'function') {
+          window.showToast('Profile Updated', 'Your details have been saved.', 'success', 2500);
+        }
+        resolve(true);
+      } catch (err) {
+        console.error('Profile guard save error:', err);
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Save & Continue';
+        if (typeof window.showToast === 'function') {
+          window.showToast('Save Failed', err.message || 'Please try again.', 'warning');
+        } else {
+          alert('Failed to save: ' + (err.message || 'Please try again.'));
+        }
+      }
+    });
+  });
+}
+
 window.toggleConsent = async function () {
   window.consentGiven = !window.consentGiven;
   const btn = document.getElementById('consentBtn');
@@ -281,35 +408,34 @@ window.toggleConsent = async function () {
     icon.classList.add('fa-check-square');
     documentList.classList.remove('hidden-consent');
 
-    // --- Profile completeness guard (fires once on consent) ---
+    // --- Profile completeness guard modal (fires once on consent) ---
     try {
       const supabase = await getSupabaseClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user?.id) {
         const { data: profile } = await supabase
           .from('profiles')
-          .select('identity_number, id_number, first_name, surname, last_name, gender, date_of_birth, street_address, address, postal_code')
+          .select('identity_number, id_number, first_name, surname, last_name, gender, date_of_birth, street_address, address, postal_code, suburb_area, contact_number, cell_tel_no')
           .eq('id', session.user.id)
           .maybeSingle();
 
-        const vals = [
-          profile?.identity_number || profile?.id_number,
-          profile?.first_name,
-          profile?.surname || profile?.last_name,
-          profile?.gender,
-          profile?.date_of_birth,
-          profile?.street_address || profile?.address,
-          profile?.postal_code
+        const fieldDefs = [
+          { key: 'identity_number', fallback: 'id_number', label: 'ID Number', type: 'text', maxlength: 13, placeholder: '0213211234083' },
+          { key: 'first_name', label: 'First Name', type: 'text', placeholder: 'John' },
+          { key: 'last_name', fallback: 'surname', label: 'Last Name / Surname', type: 'text', placeholder: 'Doe' },
+          { key: 'gender', label: 'Gender', type: 'select', options: [{ value: '', text: 'Select' }, { value: 'Male', text: 'Male' }, { value: 'Female', text: 'Female' }] },
+          { key: 'date_of_birth', label: 'Date of Birth', type: 'date' },
+          { key: 'address', fallback: 'street_address', label: 'Street Address', type: 'text', placeholder: '123 Main St' },
+          { key: 'postal_code', label: 'Postal Code', type: 'text', maxlength: 4, placeholder: '0123' },
         ];
 
-        const hasIncomplete = vals.some(v => !v || !String(v).trim());
-        if (hasIncomplete) {
-          const goToProfile = window.confirm(
-            'To continue with your loan application, please complete your profile details in Settings first.\n\nClick OK to go to Settings now.'
-          );
-          if (goToProfile && typeof loadPage === 'function') {
-            loadPage('profile');
-          }
+        const missingFields = fieldDefs.filter(f => {
+          const val = profile?.[f.key] || (f.fallback ? profile?.[f.fallback] : null);
+          return !val || !String(val).trim();
+        });
+
+        if (missingFields.length > 0) {
+          await showProfileGuardModal(missingFields, profile, supabase, session.user.id);
         }
       }
     } catch (err) {

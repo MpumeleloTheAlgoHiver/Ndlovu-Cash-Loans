@@ -195,3 +195,44 @@
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.15); }
 }
+
+/* Tab bar */
+.bs-tab-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 1.25rem;
+  background: #f3f4f6;
+  border-radius: 10px;
+  padding: 4px;
+}
+
+.bs-tab {
+  flex: 1;
+  padding: 10px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #6b7280;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.bs-tab.active {
+  background: #111827;
+  color: #f9fafb;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+}
+
+.bs-tab:not(.active):hover {
+  background: #e5e7eb;
+}
+
+.bs-panel {
+  animation: fadeIn 0.2s ease;
+}

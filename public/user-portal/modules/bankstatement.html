@@ -3,22 +3,45 @@
   <div class="upload-card">
     <div class="upload-card__header">
       <div>
-        <p class="upload-eyebrow">TruID Connection</p>
-        <h2>Connect Bank Statement <span id="bankstatementCheckmark" class="checkmark"><i class="fas fa-check-circle"></i></span></h2>
+        <p class="upload-eyebrow">Bank Statement</p>
+        <h2>Connect or Upload <span id="bankstatementCheckmark" class="checkmark"><i class="fas fa-check-circle"></i></span></h2>
       </div>
       <span class="upload-status-chip" id="bankstatementStatusChip">Pending</span>
     </div>
-    <p class="upload-lead">Securely connect your bank via TruID so your statement data can be verified automatically.</p>
+    <p class="upload-lead">Connect your bank via TruID for automatic verification, or upload a statement manually.</p>
 
-    <div>
+    <!-- Tab toggle -->
+    <div class="bs-tab-bar">
+      <button type="button" class="bs-tab active" data-tab="truid" id="bsTabTruid">
+        <i class="fas fa-landmark"></i> Connect via TruID
+      </button>
+      <button type="button" class="bs-tab" data-tab="manual" id="bsTabManual">
+        <i class="fas fa-upload"></i> Upload Manually
+      </button>
+    </div>
+
+    <!-- TruID panel -->
+    <div id="bsPanelTruid" class="bs-panel">
       <div class="upload-dropzone">
         <i class="fas fa-landmark"></i>
         <p class="dropzone-title">Connect with TruID</p>
         <p class="dropzone-subtext">You'll be redirected to your bank's secure consent screen.</p>
-        <span class="file-hint">No manual upload required</span>
       </div>
-
       <button type="button" class="upload-btn" id="truidConnectBtn">Connect Bank via TruID</button>
+    </div>
+
+    <!-- Manual Upload panel -->
+    <div id="bsPanelManual" class="bs-panel" style="display:none;">
+      <form id="bankstatementForm" enctype="multipart/form-data">
+        <div class="upload-dropzone" id="bsDropzone" style="cursor:pointer;">
+          <i class="fas fa-cloud-upload-alt"></i>
+          <p class="dropzone-title">Click or drag to upload</p>
+          <p class="dropzone-subtext">PDF, JPG or PNG — max 5 MB</p>
+          <input type="file" id="bankstatementFile" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" />
+        </div>
+        <div id="bsSelectedFile" class="selected-file-name" style="display:none;"></div>
+        <button type="submit" class="upload-btn" id="bankstatementUploadBtn">Upload Bank Statement</button>
+      </form>
     </div>
 
     <div class="upload-feedback">
