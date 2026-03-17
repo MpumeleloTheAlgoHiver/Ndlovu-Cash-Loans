@@ -563,13 +563,18 @@ async function runCreditCheck() {
     
     console.log('📋 Form values collected');
 
-    // Validation — credit guard popup (no per-field list)
+    // Validation — show exactly which fields are missing on the form
     const missingFields = getMissingRequiredCreditFields();
     if (missingFields.length > 0) {
+      const missingLabels = missingFields.map(f => f.label).join(', ');
+      if (typeof window.showToast === 'function') {
+        window.showToast('Missing Fields', `Please fill in: ${missingLabels}`, 'warning');
+      } else {
+        alert(`⚠️ Please fill in: ${missingLabels}`);
+      }
       isProcessing = false;
       button.disabled = false;
       button.style.opacity = '1';
-      showCreditProfileGuardPopup();
       return;
     }
     
@@ -838,21 +843,7 @@ window.startCreditCheckSilent = async function(button) {
       cell_tel_no: profile?.cell_tel_no || profile?.cell_phone || profile?.contact_number || ''
     };
 
-    const hasMissingProfileDetails = [
-      normalizedProfile.identity_number,
-      normalizedProfile.surname,
-      normalizedProfile.first_name,
-      normalizedProfile.gender,
-      normalizedProfile.date_of_birth,
-      normalizedProfile.street_address,
-      normalizedProfile.postal_code
-    ].some((value) => !value || !String(value).trim());
 
-    if (hasMissingProfileDetails) {
-      _resetCircleButton(button);
-      showCreditProfileGuardPopup();
-      return;
-    }
 
     // Ensure credit check consent is persisted
     const { data: declaration } = await supabase

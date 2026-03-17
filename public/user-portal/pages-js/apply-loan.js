@@ -265,7 +265,7 @@ async function initKycButton() {
   await refreshKycStatus();
 }
 
-window.toggleConsent = function () {
+window.toggleConsent = async function () {
   window.consentGiven = !window.consentGiven;
   const btn = document.getElementById('consentBtn');
   const icon = btn?.querySelector('i');
@@ -280,6 +280,41 @@ window.toggleConsent = function () {
     icon.classList.remove('fa-square');
     icon.classList.add('fa-check-square');
     documentList.classList.remove('hidden-consent');
+
+    // --- Profile completeness guard (fires once on consent) ---
+    try {
+      const supabase = await getSupabaseClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user?.id) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('identity_number, id_number, first_name, surname, last_name, gender, date_of_birth, street_address, address, postal_code')
+          .eq('id', session.user.id)
+          .maybeSingle();
+
+        const vals = [
+          profile?.identity_number || profile?.id_number,
+          profile?.first_name,
+          profile?.surname || profile?.last_name,
+          profile?.gender,
+          profile?.date_of_birth,
+          profile?.street_address || profile?.address,
+          profile?.postal_code
+        ];
+
+        const hasIncomplete = vals.some(v => !v || !String(v).trim());
+        if (hasIncomplete) {
+          const goToProfile = window.confirm(
+            'To continue with your loan application, please complete your profile details in Settings first.\n\nClick OK to go to Settings now.'
+          );
+          if (goToProfile && typeof loadPage === 'function') {
+            loadPage('profile');
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('Profile guard check failed:', err);
+    }
   } else {
     btn.classList.remove('active');
     icon.classList.remove('fa-check-square');
