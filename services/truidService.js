@@ -39,29 +39,47 @@ const TRUID_COLLECTIONS_TABLE = 'truid_collections';
 
 class TruIDClient {
   constructor() {
-    this.apiKey = readEnv('TRUID_API_KEY') || readEnv('TRUID_X_API_KEY') || '';
-    this.subscriptionKey =
-      readEnv('TRUID_SUBSCRIPTION_KEY') ||
-      readEnv('TRUID_API_SUBSCRIPTION_KEY') ||
-      readEnv('OCP_APIM_SUBSCRIPTION_KEY') ||
-      readEnv('SUBSCRIPTION_KEY') ||
-      this.apiKey ||
-      '';
-    const configuredBase = readEnv('TRUID_API_BASE') || readEnv('TRUID_API_BASE_URL') || 'https://api.truidconnect.io';
+    this.apiKey = process.env.TRUID_API_KEY;
+    this.subscriptionKey = process.env.TRUID_SUBSCRIPTION_KEY || process.env.TRUID_API_KEY;
+    const configuredBase = process.env.TRUID_API_BASE || 'https://api.truidconnect.io';
     this.baseURL = configuredBase.replace(/\/$/, '');
-    this.companyId = readEnv('COMPANY_ID');
-    this.brandId = readEnv('BRAND_ID');
-    this.redirectUrl = readEnv('REDIRECT_URL');
-    this.webhookUrl = readEnv('WEBHOOK_URL');
+    this.companyId = process.env.COMPANY_ID;
+    this.brandId = process.env.BRAND_ID;
+    this.redirectUrl = process.env.REDIRECT_URL;
+    this.webhookUrl = process.env.WEBHOOK_URL;
+
+    // Pre-configured axios instances — identical to the working TruID integration
+    this.consultantClient = axios.create({
+      baseURL: `${this.baseURL}/consultant-api`,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'x-api-key': this.apiKey,
+        'Ocp-Apim-Subscription-Key': this.subscriptionKey
+      },
+      timeout: 10000
+    });
+
+    this.deliveryClient = axios.create({
+      baseURL: `${this.baseURL}/delivery-api`,
+      headers: {
+        Accept: 'application/json',
+        'Content-Type': 'application/json',
+        'x-api-key': this.apiKey,
+        'Ocp-Apim-Subscription-Key': this.subscriptionKey
+      },
+      timeout: 10000
+    });
   }
 
   validateSetup() {
     const missing = [];
-    if (!this.subscriptionKey) {
-      missing.push('TRUID_SUBSCRIPTION_KEY (or TRUID_API_SUBSCRIPTION_KEY / OCP_APIM_SUBSCRIPTION_KEY / SUBSCRIPTION_KEY)');
-    }
+    if (!this.apiKey) missing.push('TRUID_API_KEY');
     if (!this.companyId) missing.push('COMPANY_ID');
     if (!this.brandId) missing.push('BRAND_ID');
+    if (!this.redirectUrl) missing.push('REDIRECT_URL');
+    if (!this.webhookUrl) missing.push('WEBHOOK_URL');
+    if (!this.baseURL) missing.push('TRUID_API_BASE');
     if (missing.length) {
       const err = new Error(`Missing required environment variables: ${missing.join(', ')}`);
       err.code = 'TRUID_CONFIG_MISSING';
@@ -71,19 +89,33 @@ class TruIDClient {
 
   buildConsumerUrl(consentId) {
     if (!consentId) return null;
-    const scheme = readEnv('TRUID_SCHEME') || 'https';
-    // TruID consumer widget lives at hello.truidconnect.io – never rewrite to www
-    const domain = readEnv('TRUID_CONSUMER_DOMAIN') || 'hello.truidconnect.io';
-    return `${scheme}://${domain}/consents/${consentId}`;
+    const scheme = process.env.TRUID_SCHEME || 'https';
+    const domain = process.env.TRUID_DOMAIN || 'hello.truidconnect.io';
+    const host = domain.startsWith('www.') ? domain : `www.${domain}`;
+    return `${scheme}://${host}/consents/${consentId}`;
+  }
+
+  normalizeConsumerUrl(url) {
+    if (!url || typeof url !== 'string') return url;
+    const scheme = process.env.TRUID_SCHEME || 'https';
+    const domain = process.env.TRUID_DOMAIN;
+    if (!domain) return url;
+    try {
+      const parsed = new URL(url);
+      const host = domain.startsWith('www.') ? domain : `www.${domain}`;
+      parsed.protocol = `${scheme}:`;
+      parsed.host = host;
+      return parsed.toString();
+    } catch (_) {
+      return url;
+    }
   }
 
   resolveConsumerUrl(responseData, consentId, locationHeader) {
-    // Prefer whatever URL TruID's API returned — never rewrite the host
-    if (responseData?.consumerUrl) return responseData.consumerUrl;
-    if (responseData?.links?.consumer) return responseData.links.consumer;
-    if (responseData?.inviteUrl) return responseData.inviteUrl;
-    if (locationHeader) return locationHeader;
-    // Last resort: build from consentId
+    if (responseData?.consumerUrl) return this.normalizeConsumerUrl(responseData.consumerUrl);
+    if (responseData?.links?.consumer) return this.normalizeConsumerUrl(responseData.links.consumer);
+    if (responseData?.inviteUrl) return this.normalizeConsumerUrl(responseData.inviteUrl);
+    if (locationHeader) return this.normalizeConsumerUrl(locationHeader);
     return this.buildConsumerUrl(consentId);
   }
 
@@ -99,58 +131,12 @@ class TruIDClient {
   }
 
   normalizeError(error, defaultMessage) {
-    const status = error.status || error.response?.status || 500;
-    const details = error.message || error.response?.data?.message || defaultMessage;
-    const err = new Error(details);
-    err.status = status;
+    const status = error.response?.status;
+    const details = error.response?.data || error.message;
+    const normalizedDetails = typeof details === 'string' ? details : JSON.stringify(details);
+    const err = new Error(`${defaultMessage}: ${normalizedDetails}`);
+    err.status = status || 500;
     return err;
-  }
-
-  async fetchApi(client, method, path, body = null) {
-    const url = `${this.baseURL}/${client}${path}`;
-    try {
-      const headers = {
-        Accept: 'application/json',
-        'Content-Type': 'application/json'
-      };
-
-      if (this.apiKey) {
-        headers['x-api-key'] = this.apiKey;
-      }
-
-      if (this.subscriptionKey) {
-        headers['Ocp-Apim-Subscription-Key'] = this.subscriptionKey;
-        headers['ocp-apim-subscription-key'] = this.subscriptionKey;
-      }
-
-      const response = await axios({
-        method,
-        url,
-        data: body,
-        headers,
-        validateStatus: () => true,
-        timeout: 25000
-      });
-
-      const responseHeaders = {};
-      Object.keys(response.headers || {}).forEach((key) => {
-        responseHeaders[key.toLowerCase()] = response.headers[key];
-      });
-
-      const data = response.data;
-      if (response.status < 200 || response.status >= 300) {
-        const err = new Error(typeof data === 'string' ? data : JSON.stringify(data));
-        err.status = response.status;
-        throw err;
-      }
-
-      return { status: response.status, data, headers: responseHeaders };
-    } catch (error) {
-      if (!error.status && error.response?.status) {
-        error.status = error.response.status;
-      }
-      throw error;
-    }
   }
 
   async createCollection(options = {}) {
@@ -198,17 +184,24 @@ class TruIDClient {
     };
 
     try {
-      const response = await this.fetchApi('consultant-api', 'POST', '/collections', payload);
+      const response = await this.consultantClient.post('/collections', payload);
+      console.log('TruID create response', {
+        status: response.status,
+        headers: response.headers,
+        data: response.data
+      });
+      const locationHeader = response.headers['location'];
+      const consentHeader = response.headers['x-consent'];
       const payloadData = typeof response.data === 'object' && response.data !== null ? response.data : null;
-      const collectionId = this.extractCollectionId(response.headers.location, payloadData?.id);
-      const consumerUrl = this.resolveConsumerUrl(payloadData, response.headers['x-consent'], response.headers.location);
+      const collectionId = this.extractCollectionId(locationHeader, payloadData?.id);
+      const consumerUrl = this.resolveConsumerUrl(payloadData, consentHeader, locationHeader);
 
       return {
         success: true,
         status: response.status,
         collectionId,
         data: payloadData,
-        consentId: response.headers['x-consent'],
+        consentId: consentHeader,
         consumerUrl
       };
     } catch (error) {
@@ -219,7 +212,7 @@ class TruIDClient {
   async getCollection(collectionId) {
     this.validateSetup();
     try {
-      const response = await this.fetchApi('consultant-api', 'GET', `/collections/${collectionId}`);
+      const response = await this.consultantClient.get(`/collections/${collectionId}`);
       return { success: true, status: response.status, data: response.data };
     } catch (error) {
       throw this.normalizeError(error, 'Failed to retrieve collection');
@@ -229,7 +222,7 @@ class TruIDClient {
   async getCollectionData(collectionId) {
     this.validateSetup();
     try {
-      const response = await this.fetchApi('delivery-api', 'GET', `/collections/${collectionId}/products/summary`);
+      const response = await this.deliveryClient.get(`/collections/${collectionId}/products/summary`);
       return { success: true, status: response.status, data: response.data };
     } catch (error) {
       throw this.normalizeError(error, 'Failed to download collection data');
