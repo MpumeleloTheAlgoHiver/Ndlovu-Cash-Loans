@@ -882,6 +882,16 @@ const resolveAdminFile = (fileName) => {
     return path.join(adminSourcePath, fileName);
 };
 
+// Intercept ALL /admin/*.html requests BEFORE static middleware so config is injected
+app.get('/admin/:page.html', (req, res, next) => {
+    const fileName = req.params.page + '.html';
+    const filePath = resolveAdminFile(fileName);
+    if (fs.existsSync(filePath)) {
+        return sendHtmlWithConfig(filePath, res);
+    }
+    next();
+});
+
 if (adminBuildExists) {
     // ★★★ THIS IS THE FIX YOU NEEDED ★★★
     // This captures requests to /assets/... and points them to public/admin/dist/assets
@@ -1048,6 +1058,10 @@ app.get('/admin/users', (req, res) => {
 
 app.get('/admin/settings', (req, res) => {
     sendAdminPage('settings.html', res);
+});
+
+app.get('/admin/financials', (req, res) => {
+    sendAdminPage('financials.html', res);
 });
 
 
