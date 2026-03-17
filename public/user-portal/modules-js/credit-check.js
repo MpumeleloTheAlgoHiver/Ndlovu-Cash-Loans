@@ -227,6 +227,28 @@ function getMissingRequiredCreditFields() {
   });
 }
 
+function showCreditProfileGuardPopup() {
+  const shouldOpenProfile = window.confirm(
+    'To continue with your credit application, please complete your profile details in Settings first. Click OK to open Settings now.'
+  );
+
+  if (!shouldOpenProfile) return;
+
+  try {
+    if (typeof closeModule === 'function') {
+      closeModule();
+    }
+  } catch (error) {
+    console.warn('Could not close credit module before redirect:', error);
+  }
+
+  if (typeof loadPage === 'function') {
+    loadPage('profile');
+  } else {
+    window.location.href = '/user-portal/?page=profile';
+  }
+}
+
 async function prefillCreditCheckFormFromProfile() {
   try {
     const { supabase, session } = await getSessionAndClient();
@@ -540,19 +562,14 @@ async function runCreditCheck() {
     const cell_tel_no = document.getElementById('cell_tel_no').value.trim();
     
     console.log('📋 Form values collected');
-    
-    // Validation — show exactly which fields are missing
+
+    // Validation — credit guard popup (no per-field list)
     const missingFields = getMissingRequiredCreditFields();
     if (missingFields.length > 0) {
-      const missingLabels = missingFields.map(f => f.label).join(', ');
-      if (typeof window.showToast === 'function') {
-        window.showToast('Missing Fields', `Please fill in: ${missingLabels}`, 'warning');
-      } else {
-        alert(`⚠️ Please fill in: ${missingLabels}`);
-      }
       isProcessing = false;
       button.disabled = false;
       button.style.opacity = '1';
+      showCreditProfileGuardPopup();
       return;
     }
     
@@ -820,6 +837,22 @@ window.startCreditCheckSilent = async function(button) {
       suburb_area: profile?.suburb_area || profile?.suburb || '',
       cell_tel_no: profile?.cell_tel_no || profile?.cell_phone || profile?.contact_number || ''
     };
+
+    const hasMissingProfileDetails = [
+      normalizedProfile.identity_number,
+      normalizedProfile.surname,
+      normalizedProfile.first_name,
+      normalizedProfile.gender,
+      normalizedProfile.date_of_birth,
+      normalizedProfile.street_address,
+      normalizedProfile.postal_code
+    ].some((value) => !value || !String(value).trim());
+
+    if (hasMissingProfileDetails) {
+      _resetCircleButton(button);
+      showCreditProfileGuardPopup();
+      return;
+    }
 
     // Ensure credit check consent is persisted
     const { data: declaration } = await supabase
