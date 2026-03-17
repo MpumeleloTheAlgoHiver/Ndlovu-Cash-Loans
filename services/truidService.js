@@ -19,8 +19,14 @@ const TRUID_COLLECTIONS_TABLE = 'truid_collections';
 
 class TruIDClient {
   constructor() {
-    this.apiKey = readEnv('TRUID_API_KEY');
-    this.subscriptionKey = readEnv('TRUID_SUBSCRIPTION_KEY') || this.apiKey;
+    this.apiKey = readEnv('TRUID_API_KEY') || readEnv('TRUID_X_API_KEY') || '';
+    this.subscriptionKey =
+      readEnv('TRUID_SUBSCRIPTION_KEY') ||
+      readEnv('TRUID_API_SUBSCRIPTION_KEY') ||
+      readEnv('OCP_APIM_SUBSCRIPTION_KEY') ||
+      readEnv('SUBSCRIPTION_KEY') ||
+      this.apiKey ||
+      '';
     const configuredBase = readEnv('TRUID_API_BASE') || readEnv('TRUID_API_BASE_URL') || 'https://api.truidconnect.io';
     this.baseURL = configuredBase.replace(/\/$/, '');
     this.companyId = readEnv('COMPANY_ID');
@@ -31,7 +37,9 @@ class TruIDClient {
 
   validateSetup() {
     const missing = [];
-    if (!this.apiKey) missing.push('TRUID_API_KEY');
+    if (!this.subscriptionKey) {
+      missing.push('TRUID_SUBSCRIPTION_KEY (or TRUID_API_SUBSCRIPTION_KEY / OCP_APIM_SUBSCRIPTION_KEY / SUBSCRIPTION_KEY)');
+    }
     if (!this.companyId) missing.push('COMPANY_ID');
     if (!this.brandId) missing.push('BRAND_ID');
     if (missing.length) {
@@ -95,16 +103,25 @@ class TruIDClient {
   async fetchApi(client, method, path, body = null) {
     const url = `${this.baseURL}/${client}${path}`;
     try {
+      const headers = {
+        Accept: 'application/json',
+        'Content-Type': 'application/json'
+      };
+
+      if (this.apiKey) {
+        headers['x-api-key'] = this.apiKey;
+      }
+
+      if (this.subscriptionKey) {
+        headers['Ocp-Apim-Subscription-Key'] = this.subscriptionKey;
+        headers['ocp-apim-subscription-key'] = this.subscriptionKey;
+      }
+
       const response = await axios({
         method,
         url,
         data: body,
-        headers: {
-          Accept: 'application/json',
-          'Content-Type': 'application/json',
-          'x-api-key': this.apiKey,
-          'Ocp-Apim-Subscription-Key': this.subscriptionKey
-        },
+        headers,
         validateStatus: () => true,
         timeout: 25000
       });
