@@ -389,7 +389,7 @@ app.get('/api/truid/user/:userId/status', async (req, res) => {
     }
 });
 
-app.post('/api/truid/webhook', async (req, res) => {
+async function handleTruIDWebhook(req, res) {
     try {
         const payload = req.body || {};
         const result = await truid.captureCollectionData({
@@ -402,7 +402,12 @@ app.post('/api/truid/webhook', async (req, res) => {
         console.error('TruID webhook error:', error.message || error);
         return res.status(error.status || 500).json({ error: 'Webhook processing failed' });
     }
-});
+}
+
+// Primary webhook path used by TruID (matches WEBHOOK_URL env var)
+app.post('/api/webhooks/truid', handleTruIDWebhook);
+// Legacy alias kept for backward compatibility
+app.post('/api/truid/webhook', handleTruIDWebhook);
 
 // Banking API endpoints
 app.post('/api/banking/initiate', async (req, res) => {
