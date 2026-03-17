@@ -98,6 +98,16 @@ async function initBankStatementModule() {
   };
 
   // --- TruID status polling ---
+  // Helper: recognise TruID's actual success/failure status codes
+  const isTruidSuccess = (s) => {
+    const u = String(s || '').toUpperCase();
+    return u === 'COLLECT_SUCCESS' || u === '2000' || u.includes('COLLECT_SUCCESS') || u.includes('SUCCESS') || u.includes('COMPLETED') || u.includes('COMPLETE');
+  };
+  const isTruidFailure = (s) => {
+    const u = String(s || '').toUpperCase();
+    return u.includes('FAILED') || u.includes('CANCELLED') || u.includes('TIMED_OUT') || u.includes('TIMEOUT') || u.includes('EXPIRED');
+  };
+
   const fetchTruidStatus = async () => {
     const response = await fetch(`/api/banking/status?userId=${encodeURIComponent(userId)}`);
     const data = await response.json();
@@ -106,7 +116,9 @@ async function initBankStatementModule() {
       throw new Error(data.error || 'Unable to check TruID status');
     }
 
-    if (data.verified) {
+    // Check raw TruID status first (more reliable than normalized flags)
+    const rawStatus = data.status || data.currentStatus || '';
+    if (isTruidSuccess(rawStatus) || data.verified) {
       applyVerifiedState(data);
       status.textContent = (data.statusLabel === 'Captured' || data.capturedAt)
         ? 'TruID capture completed.'
@@ -116,6 +128,15 @@ async function initBankStatementModule() {
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('document:uploaded', { detail: { fileType: 'bank_statement' } }));
       }
+      return;
+    }
+
+    if (isTruidFailure(rawStatus)) {
+      if (statusPollInterval) { clearInterval(statusPollInterval); statusPollInterval = null; }
+      status.textContent = `TruID connection ${rawStatus.replace(/COLLECT_/i, '').replace(/_/g, ' ').toLowerCase()}. Please try again.`;
+      status.style.color = '#dc3545';
+      if (connectBtn) { connectBtn.disabled = false; }
+      if (statusChip) { statusChip.textContent = 'Failed'; statusChip.classList.remove('success'); }
       return;
     }
 

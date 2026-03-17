@@ -10,8 +10,28 @@ const COMPLETE_STATUSES = new Set([
   'success',
   'approved',
   'data_ready',
-  'ready'
+  'ready',
+  'collect_success',
+  '2000'
 ]);
+
+// Default TruID service IDs (must match your TruID subscription)
+const DEFAULT_TRUID_SERVICES = (() => {
+  const envServices = (readEnv('TRUID_SERVICES') || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean);
+  return envServices.length
+    ? envServices
+    : [
+        'eeh03fzauckvj8u982dbeq1d8', // 90 days transactions history
+        'amqfuupe00xk3cfw3dergvb9n', // 3 months bank statements
+        's8d7f67de8w9iekjrfu',       // Personal categorisation
+        'mk2weodif8gutjre4kwsdfd',   // Income verification
+        '12wsdofikgjtm5k4eiduy',     // Affordability
+        'apw99w0lj1nwde4sfxd0'       // Pay date indicators (90 days)
+      ];
+})();
 
 const sessionsByCollectionId = new Map();
 const latestCollectionByUser = new Map();
@@ -362,7 +382,10 @@ async function resolveProfileIdentity(userId) {
 }
 
 function normalizeStatus(status) {
-  return (status || '').toString().trim().toLowerCase();
+  const raw = (status || '').toString().trim().toLowerCase();
+  // TruID returns COLLECT_SUCCESS or numeric 2000; map to unified status
+  if (raw === 'collect_success' || raw === '2000') return 'completed';
+  return raw;
 }
 
 function formatStatusLabel(status) {
@@ -450,6 +473,11 @@ async function initiateCollection(input = {}) {
     throw err;
   }
 
+  // Inject default services if none were provided
+  if (!Array.isArray(resolvedInput.services) || !resolvedInput.services.length) {
+    resolvedInput.services = DEFAULT_TRUID_SERVICES;
+  }
+
   const result = await truIDClient.createCollection(resolvedInput);
   const collectionId = result.collectionId;
 
@@ -503,7 +531,12 @@ async function getCollectionStatus(collectionId) {
   }
 
   const result = await truIDClient.getCollection(collectionId);
-  const status = result.data?.status || result.data?.state || 'pending';
+  // TruID may return status as an object {code: ...}, a string, or a numeric code
+  const statusNode = result.data?.status || result.data?.current_status;
+  const rawStatus = (typeof statusNode === 'object' && statusNode !== null)
+    ? (statusNode.code || statusNode.state || statusNode)
+    : (statusNode || result.data?.state || 'pending');
+  const status = String(rawStatus);
 
   const dbRecord = await getCollectionRecord(collectionId);
   const existing = sessionsByCollectionId.get(collectionId) || {
