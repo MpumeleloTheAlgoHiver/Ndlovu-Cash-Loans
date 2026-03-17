@@ -5,11 +5,13 @@ const AdmZip = require('adm-zip');
 
 // Experian API Configuration
 const COMPANY_ORIGIN = process.env.COMPANY_NAME || 'Zwane';
+const EXPERIAN_USERNAME = process.env.EXPERIAN_USERNAME || process.env.EXPERIAN_API_USERNAME || '';
+const EXPERIAN_PASSWORD = process.env.EXPERIAN_PASSWORD || process.env.EXPERIAN_API_PASSWORD || '';
 
 const EXPERIAN_CONFIG = {
     url: 'https://apis.experian.co.za/NormalSearchService', // Experian South Africa SOAP endpoint, dont forget to put these in env
-    username: '32389-api',
-    password: '9N=v@ZQapik1',
+    username: EXPERIAN_USERNAME,
+    password: EXPERIAN_PASSWORD,
     version: '1.0',
     origin: COMPANY_ORIGIN,
     origin_version: '0.0.1',
@@ -445,6 +447,10 @@ async function performCreditCheck(userData, applicationId, authToken = null) {
     try {
         console.log('🔍 Starting credit check for application:', applicationId);
         console.log('🔧 Experian endpoint:', EXPERIAN_CONFIG.url);
+
+        if (!EXPERIAN_CONFIG.username || !EXPERIAN_CONFIG.password) {
+            throw new Error('Experian credentials are missing. Set EXPERIAN_USERNAME and EXPERIAN_PASSWORD in environment variables.');
+        }
 
         const experianPayload = normalizeExperianPayload(userData);
         assertRequiredExperianFields(experianPayload);
