@@ -162,14 +162,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   const userProfile = await checkAuth(); 
   globalUserProfile = userProfile; 
   
-  if (userProfile && !userProfile.isProfileComplete) { 
-    const currentPage = getPageFromURL() || 'dashboard'; 
-    if (currentPage !== 'profile') { 
-      window.location.replace('/user-portal/?page=profile'); 
-      return; 
-    }
-  }
-  
   // Load navbar & sidebar
   await loadNavbar(); 
   setNavbarOffset(); 
@@ -271,9 +263,6 @@ async function loadSidebar() {
     // Setup logout button after sidebar is loaded (if present in sidebar)
     setupLogout();
     
-    if (globalUserProfile && !globalUserProfile.isProfileComplete) {
-      lockSidebar();
-    }
   } catch (error) {
     console.error('Error loading sidebar:', error);
   }
@@ -356,17 +345,6 @@ async function ensurePageStylesheet(pageName) {
 // Load Page Logic
 async function loadPage(pageName) {
   try {
-    if (globalUserProfile && !globalUserProfile.isProfileComplete && pageName !== 'profile') {
-      showProfileIncompleteToast();
-      window.history.replaceState({}, '', '/user-portal/?page=profile');
-      pageName = 'profile';
-    }
-    
-    if (globalUserProfile && globalUserProfile.needsPhoneNumber && pageName !== 'profile') {
-      showPhoneNumberRequiredToast();
-      return;
-    }
-    
     showLoading(true);
 
     const htmlResponse = await fetch(`/user-portal/pages/${pageName}.html`);

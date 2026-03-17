@@ -294,22 +294,6 @@ window.loadCreditCheckModule = function(options = {}) {
         }
 
         if (!hasExistingCheck && autoRun) {
-          const missingFields = getMissingRequiredCreditFields();
-          if (missingFields.length > 0) {
-            const missingLabels = missingFields.map((f) => f.label).join(', ');
-            moduleContainer.classList.add('hidden');
-            resetForm();
-            if (typeof window.showToast === 'function') {
-              window.showToast('Profile Details Required', `Complete profile fields first: ${missingLabels}`, 'warning');
-            } else {
-              alert(`Please complete these profile fields first: ${missingLabels}`);
-            }
-            if (typeof loadPage === 'function') {
-              loadPage('profile');
-            }
-            return;
-          }
-
           const formContent = document.getElementById('credit-form-content');
           if (formContent) {
             formContent.style.display = 'none';
@@ -836,32 +820,6 @@ window.startCreditCheckSilent = async function(button) {
       suburb_area: profile?.suburb_area || profile?.suburb || '',
       cell_tel_no: profile?.cell_tel_no || profile?.cell_phone || profile?.contact_number || ''
     };
-
-    // Validate required fields exist in profile
-    const requiredMap = {
-      'ID Number':      normalizedProfile.identity_number,
-      'Surname':        normalizedProfile.surname,
-      'First Name':     normalizedProfile.first_name,
-      'Gender':         normalizedProfile.gender,
-      'Date of Birth':  normalizedProfile.date_of_birth,
-      'Street Address': normalizedProfile.street_address,
-      'Postal Code':    normalizedProfile.postal_code,
-    };
-
-    const missing = Object.entries(requiredMap)
-      .filter(([, v]) => !v || !String(v).trim())
-      .map(([k]) => k);
-
-    if (missing.length > 0) {
-      window.showToast?.(
-        'Profile Incomplete',
-        `Please complete your profile first: ${missing.join(', ')}`,
-        'warning'
-      );
-      _resetCircleButton(button);
-      if (typeof loadPage === 'function') loadPage('profile');
-      return;
-    }
 
     // Ensure credit check consent is persisted
     const { data: declaration } = await supabase
