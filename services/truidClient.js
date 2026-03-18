@@ -1,4 +1,4 @@
-// services/truidClient.js — TruID Connect bank-statement API client
+// services/truidClient.js
 const axios = require('axios');
 
 const readEnv = (key) => process.env[key];
@@ -23,58 +23,45 @@ class TruIDClient {
     this.consultantClient = axios.create({
       baseURL: `${this.baseURL}/consultant-api`,
       headers,
-      timeout: 30000
+      timeout: 10000
     });
 
     this.deliveryClient = axios.create({
       baseURL: `${this.baseURL}/delivery-api`,
       headers,
-      timeout: 30000
+      timeout: 10000
     });
   }
 
-  /** Validates all required env vars are present before any API call */
+  // Validates all required env vars are present before any API call
   validateSetup() {
-    const missing = ['TRUID_API_KEY', 'COMPANY_ID', 'BRAND_ID', 'REDIRECT_URL', 'WEBHOOK_URL']
+    const missing = ['TRUID_API_KEY','COMPANY_ID','BRAND_ID','REDIRECT_URL','WEBHOOK_URL']
       .filter(k => !readEnv(k));
     if (missing.length) throw new Error(`Missing env vars: ${missing.join(', ')}`);
   }
 
-  /** Resolves the consumer URL from multiple possible response shapes */
-  resolveConsumerUrl(data, consentId) {
-    const fromBody = data?.consumerUrl || data?.links?.consumer || data?.inviteUrl || null;
-    if (fromBody) return fromBody;
-
-    if (consentId) {
-      const configuredDomain = readEnv('TRUID_DOMAIN') || 'truidconnect.io';
-      const consumerHost = configuredDomain.startsWith('www.') ? configuredDomain : `www.${configuredDomain}`;
-      const consumerScheme = readEnv('TRUID_SCHEME') || 'https';
-      const consumerPath = (readEnv('TRUID_CONSUMER_PATH') || 'consents').replace(/^\/+|\/+$/g, '');
-      return `${consumerScheme}://${consumerHost}/${consumerPath}/${consentId}`;
-    }
+  // Resolves the consumer URL from multiple possible response shapes
+  resolveConsumerUrl(data, consentId, locationHeader) {
+    const raw = data?.consumerUrl || data?.links?.consumer || data?.inviteUrl || locationHeader || null;
+    if (raw) return raw;
+    if (consentId) return `https://www.truidconnect.io/consents/${consentId}`;
     return null;
   }
 
-  /**
-   * STEP 1: Create a TruID collection.
-   * @param {string} name   – user's full name
-   * @param {string} idNumber – SA ID number (13-digit string)
-   * @param {string} [idType='id']
-   * @param {string} [email]
-   * @param {string} [mobile]
-   * @param {string[]} [services] – TruID product IDs
-   */
+  // STEP 1: Create a TruID collection.
+  // name = user's full name, idNumber = SA ID number (13-digit string)
+  // services = array of TruID service/product IDs
   async createCollection({ name, idNumber, idType = 'id', email, mobile, services = [] }) {
     this.validateSetup();
     if (!name || !idNumber) throw new Error('name and idNumber are required');
 
     const defaultServices = [
-      'eeh03fzauckvj8u982dbeq1d8', // 90 days transactions history
-      'amqfuupe00xk3cfw3dergvb9n', // 3 months bank statements
-      's8d7f67de8w9iekjrfu',       // Personal categorisation
-      'mk2weodif8gutjre4kwsdfd',   // Income verification
-      '12wsdofikgjtm5k4eiduy',     // Affordability
-      'apw99w0lj1nwde4sfxd0'       // Pay date indicators (90 days)
+      'eeh03fzauckvj8u982dbeq1d8',
+      'amqfuupe00xk3cfw3dergvb9n',
+      's8d7f67de8w9iekjrfu',
+      'mk2weodif8gutjre4kwsdfd',
+      '12wsdofikgjtm5k4eiduy',
+      'apw99w0lj1nwde4sfxd0'
     ];
 
     const payload = {
@@ -104,19 +91,20 @@ class TruIDClient {
         collectionId = parts[parts.length - 1] || null;
       }
 
-      const consumerUrl = this.resolveConsumerUrl(data, consentHeader);
+      const consumerUrl = this.resolveConsumerUrl(data, consentHeader, locationHeader);
 
+      // ── Vercel debug logging ──
       console.log('[TruID createCollection success]', {
         elapsedMs: Date.now() - start,
         status: response.status,
         hasBody: Boolean(data),
         bodyKeys: data ? Object.keys(data).slice(0, 12) : [],
         hasLocationHeader: Boolean(locationHeader),
+        locationHeader: locationHeader || null,
         hasConsentHeader: Boolean(consentHeader),
+        consentHeader: consentHeader || null,
         collectionId,
-        consumerUrlHost: consumerUrl ? (() => {
-          try { return new URL(consumerUrl).host; } catch (_) { return 'invalid-url'; }
-        })() : null
+        consumerUrl: consumerUrl || null
       });
 
       return { success: true, collectionId, consumerUrl, consentId: consentHeader, data };
@@ -136,7 +124,7 @@ class TruIDClient {
     }
   }
 
-  /** STEP 2: Check collection status */
+  // STEP 2: Check collection status
   async getCollection(collectionId) {
     this.validateSetup();
     try {
@@ -150,7 +138,7 @@ class TruIDClient {
     }
   }
 
-  /** STEP 3: Download completed bank statement data */
+  // STEP 3: Download completed bank statement data
   async getCollectionData(collectionId) {
     this.validateSetup();
     try {

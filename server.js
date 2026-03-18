@@ -363,6 +363,7 @@ app.get('/api/kyc/user/:userId/status', async (req, res) => {
 
 // ROUTE 1: Initiate a TruID collection
 // Client POSTs: { name, idNumber, email?, mobile? }
+// Returns: { success, collectionId, consumerUrl }
 app.post('/api/truid/initiate', async (req, res) => {
     const { name, idNumber, email, mobile, services } = req.body || {};
     if (!name || !idNumber) {
@@ -388,24 +389,13 @@ app.post('/api/truid/initiate', async (req, res) => {
             consumerUrl: result.consumerUrl || null
         });
 
-        if (!result.consumerUrl) {
-            console.error('TruID initiate error: missing consumerUrl', {
-                collectionId: result.collectionId,
-                hasData: Boolean(result.data)
-            });
-            return res.status(502).json({
-                success: false,
-                error: 'TruID did not return a valid consumer URL. Please try again.'
-            });
-        }
-
         return res.status(201).json({
             success: true,
             collectionId: result.collectionId,
             consumerUrl: result.consumerUrl
         });
     } catch (err) {
-        console.error('TruID initiate error:', {
+        console.error('[TruID initiate error]', {
             message: err.message,
             status: err.status || 500,
             code: err.code || null
@@ -415,6 +405,8 @@ app.post('/api/truid/initiate', async (req, res) => {
 });
 
 // ROUTE 2: Poll collection status
+// Client GETs: /api/truid/status?collectionId=xxx
+// Returns: { success, collectionId, currentStatus }
 app.get('/api/truid/status', async (req, res) => {
     const { collectionId } = req.query;
     if (!collectionId) {
@@ -436,12 +428,14 @@ app.get('/api/truid/status', async (req, res) => {
 
         return res.json({ success: true, collectionId, currentStatus, raw: d });
     } catch (err) {
-        console.error('TruID status error:', err.message);
+        console.error('[TruID status error]', err.message);
         return res.status(err.status || 500).json({ success: false, error: err.message });
     }
 });
 
 // ROUTE 3: Capture (download) completed bank statement data
+// Client POSTs: { collectionId }
+// Returns: { success, collectionId, snapshot }
 app.post('/api/truid/capture', async (req, res) => {
     const { collectionId } = req.body || {};
     if (!collectionId) {
@@ -455,8 +449,10 @@ app.post('/api/truid/capture', async (req, res) => {
         const accounts = statement.accounts || [];
         const transactions = accounts[0]?.transactions || [];
 
+        // Helper: safely convert to number
         const toNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 
+        // Helper: get statistical mode from array of positive numbers (finds most-common salary amount)
         const getMode = (vals) => {
             const counts = new Map();
             vals.forEach(v => { const k = toNum(v); if (k > 0) counts.set(k, (counts.get(k) || 0) + 1); });
@@ -487,6 +483,7 @@ app.post('/api/truid/capture', async (req, res) => {
             return isCreditType && hasSalaryText;
         });
 
+        // Main salary = mode of monthly salary amounts (most recurring value = likely primary salary)
         const mainSalary = getMode(salaryCredits.map(tx => toNum(tx.amount)))
             || (salaryCredits.length ? totalIncome / divisor : 0)
             || getMode(summaryData.map(m => toNum(m.main_income)));
@@ -515,7 +512,7 @@ app.post('/api/truid/capture', async (req, res) => {
 
         return res.status(201).json({ success: true, collectionId, snapshot });
     } catch (err) {
-        console.error('TruID capture error:', err.message);
+        console.error('[TruID capture error]', err.message);
         return res.status(err.status || 500).json({ success: false, error: err.message });
     }
 });
@@ -529,7 +526,7 @@ app.post('/api/truid/webhook', async (req, res) => {
         // In production, trigger getCollectionData + persist here
         return res.status(200).json({ success: true });
     } catch (error) {
-        console.error('TruID webhook error:', error.message);
+        console.error('[TruID webhook error]', error.message);
         return res.status(500).json({ error: 'Webhook processing failed' });
     }
 });
