@@ -1124,6 +1124,7 @@ function ensureDashboardSwipeModalRoot() {
     root = document.createElement('div');
     root.id = DASHBOARD_MODAL_ID;
     root.className = 'dashboard-swipe-modal';
+    root.style.display = 'none';
     root.innerHTML = `
         <div class="swipe-modal-panel" role="dialog" aria-modal="true" aria-label="Dashboard details">
             <div class="swipe-modal-header">
@@ -1387,6 +1388,7 @@ function openDashboardSwipeModal(mode) {
     swipeModalState.index = 0;
     const root = ensureDashboardSwipeModalRoot();
     renderSwipeModal();
+    root.style.display = '';
     root.classList.add('open');
     document.body.classList.add('swipe-modal-open');
 }
@@ -1395,6 +1397,7 @@ function closeDashboardSwipeModal() {
     const root = document.getElementById(DASHBOARD_MODAL_ID);
     if (root) {
         root.classList.remove('open');
+        root.style.display = 'none';
     }
     document.body.classList.remove('swipe-modal-open');
 }

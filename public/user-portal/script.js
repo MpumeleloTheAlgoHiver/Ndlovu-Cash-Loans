@@ -347,6 +347,14 @@ async function loadPage(pageName) {
   try {
     showLoading(true);
 
+    if (pageName !== 'dashboard') {
+      const staleDashboardModal = document.getElementById('dashboard-swipe-modal');
+      if (staleDashboardModal) {
+        staleDashboardModal.remove();
+      }
+      document.body.classList.remove('swipe-modal-open');
+    }
+
     const htmlResponse = await fetch(`/user-portal/pages/${pageName}.html`);
     if (!htmlResponse.ok) throw new Error(`Page not found: ${pageName}`);
     const htmlContent = await htmlResponse.text();
