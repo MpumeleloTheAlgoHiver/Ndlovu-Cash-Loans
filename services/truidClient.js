@@ -45,7 +45,11 @@ class TruIDClient {
     const fromBody = data?.consumerUrl || data?.links?.consumer || data?.inviteUrl || null;
     if (fromBody) return fromBody;
 
-    if (consentId) return `https://www.truidconnect.io/consents/${consentId}`;
+    if (consentId) {
+      const consentHost = readEnv('TRUID_DOMAIN') || 'hello.truidconnect.io';
+      const consentScheme = readEnv('TRUID_SCHEME') || 'https';
+      return `${consentScheme}://${consentHost}/consents/${consentId}`;
+    }
     return null;
   }
 
