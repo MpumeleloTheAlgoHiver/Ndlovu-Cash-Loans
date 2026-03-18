@@ -41,9 +41,11 @@ class TruIDClient {
   }
 
   // Resolves the consumer URL from multiple possible response shapes
-  resolveConsumerUrl(data, consentId, locationHeader) {
-    const raw = data?.consumerUrl || data?.links?.consumer || data?.inviteUrl || locationHeader || null;
-    if (raw) return raw;
+  resolveConsumerUrl(data, consentId) {
+    // Check body fields first — never use locationHeader (it's the API resource URL, not consumer-facing)
+    const fromBody = data?.consumerUrl || data?.links?.consumer || data?.inviteUrl || null;
+    if (fromBody) return fromBody;
+    // Fallback: build consent URL from x-consent header
     if (consentId) return `https://www.truidconnect.io/consents/${consentId}`;
     return null;
   }
@@ -91,7 +93,7 @@ class TruIDClient {
         collectionId = parts[parts.length - 1] || null;
       }
 
-      const consumerUrl = this.resolveConsumerUrl(data, consentHeader, locationHeader);
+      const consumerUrl = this.resolveConsumerUrl(data, consentHeader);
 
       // ── Vercel debug logging ──
       console.log('[TruID createCollection success]', {
