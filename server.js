@@ -386,13 +386,15 @@ app.post('/api/truid/initiate', async (req, res) => {
             elapsedMs: Date.now() - start,
             collectionId: result.collectionId,
             consentId: result.consentId || null,
-            consumerUrl: result.consumerUrl || null
+            consumerUrl: result.consumerUrl || null,
+            candidateUrls: result.candidateUrls || null
         });
 
         return res.status(201).json({
             success: true,
             collectionId: result.collectionId,
-            consumerUrl: result.consumerUrl
+            consumerUrl: result.consumerUrl,
+            candidateUrls: result.candidateUrls || null
         });
     } catch (err) {
         console.error('[TruID initiate error]', {

@@ -82,9 +82,11 @@ class TruIDClient {
     try {
       const start = Date.now();
       const response = await this.consultantClient.post('/collections', payload);
-      const locationHeader = response.headers['location'];
-      const consentHeader = response.headers['x-consent'];
+      const headers = response.headers || {};
+      const locationHeader = headers['location'] || null;
+      const consentHeader = headers['x-consent'] || null;
       const data = typeof response.data === 'object' ? response.data : null;
+      const rawBody = response.data;
 
       // Extract collectionId — prefer body.id, fall back to last segment of Location header
       let collectionId = data?.id || null;
@@ -95,21 +97,32 @@ class TruIDClient {
 
       const consumerUrl = this.resolveConsumerUrl(data, consentHeader);
 
-      // ── Vercel debug logging ──
-      console.log('[TruID createCollection success]', {
-        elapsedMs: Date.now() - start,
-        status: response.status,
-        hasBody: Boolean(data),
-        bodyKeys: data ? Object.keys(data).slice(0, 12) : [],
-        hasLocationHeader: Boolean(locationHeader),
-        locationHeader: locationHeader || null,
-        hasConsentHeader: Boolean(consentHeader),
-        consentHeader: consentHeader || null,
-        collectionId,
-        consumerUrl: consumerUrl || null
-      });
+      // Build ALL candidate URLs so we can diagnose which one works
+      const candidateUrls = {
+        fromBody: data?.consumerUrl || data?.links?.consumer || data?.inviteUrl || null,
+        consentPath: consentHeader ? `https://www.truidconnect.io/consents/${consentHeader}` : null,
+        credentialsPath: consentHeader ? `https://www.truidconnect.io/credentials/${consentHeader}` : null,
+        locationDirect: locationHeader || null,
+        collectionConsents: collectionId ? `https://www.truidconnect.io/consents/${collectionId}` : null,
+        collectionCredentials: collectionId ? `https://www.truidconnect.io/credentials/${collectionId}` : null,
+        selected: consumerUrl
+      };
 
-      return { success: true, collectionId, consumerUrl, consentId: consentHeader, data };
+      // ── FULL Vercel debug logging ──
+      console.log('[TruID createCollection FULL DEBUG]', JSON.stringify({
+        elapsedMs: Date.now() - start,
+        httpStatus: response.status,
+        allHeaders: Object.fromEntries(
+          Object.entries(headers).filter(([k]) => typeof headers[k] === 'string')
+        ),
+        rawBody: typeof rawBody === 'string' ? rawBody.substring(0, 500) : rawBody,
+        bodyKeys: data ? Object.keys(data) : [],
+        collectionId,
+        consentId: consentHeader,
+        candidateUrls
+      }, null, 2));
+
+      return { success: true, collectionId, consumerUrl, consentId: consentHeader, data, candidateUrls };
     } catch (error) {
       const status = error.response?.status || 500;
       const details = JSON.stringify(error.response?.data || error.message);

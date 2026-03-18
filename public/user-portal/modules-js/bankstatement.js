@@ -248,6 +248,14 @@ async function initBankStatementModule() {
       });
       const data = await r.json();
 
+      // ── DEBUG: log all candidate URLs so we can identify the working one ──
+      console.log('[TruID] Server response:', JSON.stringify({
+        success: data.success,
+        collectionId: data.collectionId,
+        consumerUrl: data.consumerUrl,
+        candidateUrls: data.candidateUrls || 'none'
+      }, null, 2));
+
       if (!data.success || !data.consumerUrl) {
         throw new Error(data.error || 'Failed to get consent URL');
       }
