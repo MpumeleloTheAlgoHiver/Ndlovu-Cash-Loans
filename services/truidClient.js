@@ -41,18 +41,11 @@ class TruIDClient {
   }
 
   /** Resolves the consumer URL from multiple possible response shapes */
-  resolveConsumerUrl(data, consentId, locationHeader) {
+  resolveConsumerUrl(data, consentId) {
     const fromBody = data?.consumerUrl || data?.links?.consumer || data?.inviteUrl || null;
     if (fromBody) return fromBody;
 
-    const fromLocation =
-      typeof locationHeader === 'string' &&
-      (locationHeader.includes('/consents/') || locationHeader.includes('hello.truidconnect.io') || locationHeader.includes('www.truidconnect.io'))
-        ? locationHeader
-        : null;
-    if (fromLocation) return fromLocation;
-
-    if (consentId) return `https://hello.truidconnect.io/consents/${consentId}`;
+    if (consentId) return `https://www.truidconnect.io/consents/${consentId}`;
     return null;
   }
 
@@ -104,7 +97,7 @@ class TruIDClient {
         collectionId = parts[parts.length - 1] || null;
       }
 
-      const consumerUrl = this.resolveConsumerUrl(data, consentHeader, locationHeader);
+      const consumerUrl = this.resolveConsumerUrl(data, consentHeader);
 
       return { success: true, collectionId, consumerUrl, consentId: consentHeader, data };
     } catch (error) {
