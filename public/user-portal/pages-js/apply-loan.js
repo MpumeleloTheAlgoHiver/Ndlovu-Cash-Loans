@@ -730,20 +730,12 @@ async function refreshDocumentStatuses(showSpinner = false) {
     setModuleStatusLoading();
   }
 
-  const [tillSlipExists, bankStatementExists, truidStatus] = await Promise.all([
+  const [tillSlipExists, bankStatementExists] = await Promise.all([
     documentServices.checkDocumentExistsByUser(activeUserId, 'till_slip'),
-    documentServices.checkDocumentExistsByUser(activeUserId, 'bank_statement'),
-    fetch(`/api/truid/user/${activeUserId}/status`)
-      .then(async (res) => {
-        if (!res.ok) {
-          return { verified: false };
-        }
-        return res.json();
-      })
-      .catch(() => ({ verified: false }))
+    documentServices.checkDocumentExistsByUser(activeUserId, 'bank_statement')
   ]);
 
-  const bankStatementReady = bankStatementExists || !!truidStatus?.verified;
+  const bankStatementReady = bankStatementExists;
 
   updateDocumentButtonState('tillslip', tillSlipExists ? 'complete' : 'pending');
   updateDocumentButtonState('bankstatement', bankStatementReady ? 'complete' : 'pending');
