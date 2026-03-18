@@ -1321,11 +1321,25 @@ function updateSwipeTrack() {
 
 function moveSwipeModal(direction) {
     const items = getSwipeModalItems();
-    if (!items.length) return;
+    if (!items.length) return false;
+
+    const previousIndex = swipeModalState.index;
     swipeModalState.index += direction;
     if (swipeModalState.index < 0) swipeModalState.index = 0;
     if (swipeModalState.index > items.length - 1) swipeModalState.index = items.length - 1;
     updateSwipeTrack();
+
+    return swipeModalState.index !== previousIndex;
+}
+
+function switchSwipeModalMode(nextMode) {
+    if (!nextMode || nextMode === swipeModalState.mode) {
+        return;
+    }
+
+    swipeModalState.mode = nextMode;
+    swipeModalState.index = 0;
+    renderSwipeModal();
 }
 
 function getClientX(event) {
@@ -1348,8 +1362,20 @@ function onSwipeEnd() {
     if (!swipeModalState.isDragging) return;
     const delta = (swipeModalState.touchCurrentX || 0) - (swipeModalState.touchStartX || 0);
     const threshold = 50;
+    const modeSwitchThreshold = 120;
     if (Math.abs(delta) > threshold) {
-        moveSwipeModal(delta > 0 ? -1 : 1);
+        const moved = moveSwipeModal(delta > 0 ? -1 : 1);
+
+        // Edge swipe gesture: switch between Loans <-> Applications
+        // Right swipe at first slide => Applications -> Loans
+        // Left swipe at last slide => Loans -> Applications
+        if (!moved && Math.abs(delta) >= modeSwitchThreshold) {
+            if (delta > 0 && swipeModalState.mode === 'applications') {
+                switchSwipeModalMode('loans');
+            } else if (delta < 0 && swipeModalState.mode === 'loans') {
+                switchSwipeModalMode('applications');
+            }
+        }
     }
     swipeModalState.isDragging = false;
     swipeModalState.touchStartX = null;
