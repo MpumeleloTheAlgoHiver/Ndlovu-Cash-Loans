@@ -1,7 +1,7 @@
 import { supabase } from '/Services/supabaseClient.js';
 
 async function initBankStatementModule() {
-  const status = document.getElementById('truidStatusMessage');
+  const statusEl = document.getElementById('truidStatusMessage');
   const connectBtn = document.getElementById('truidConnectBtn');
   const checkmark = document.getElementById('bankstatementCheckmark');
   const existingInfo = document.getElementById('existingFileInfo');
@@ -24,14 +24,12 @@ async function initBankStatementModule() {
     });
   }
 
-  if (!status || !connectBtn) {
+  if (!statusEl || !connectBtn) {
     console.warn('⚠️ Bank statement module DOM not ready');
     return;
   }
 
-  if (connectBtn.dataset.bound === 'true') {
-    return;
-  }
+  if (connectBtn.dataset.bound === 'true') return;
   connectBtn.dataset.bound = 'true';
 
   const applicationId = sessionStorage.getItem('currentApplicationId') || sessionStorage.getItem('lastApplicationId');
@@ -41,69 +39,262 @@ async function initBankStatementModule() {
 
   if (!userId) {
     console.warn('⚠️ User not logged in');
-    status.textContent = '⚠️ Please log in first';
-    status.style.color = '#ff9800';
+    statusEl.textContent = '⚠️ Please log in first';
+    statusEl.style.color = '#ff9800';
     connectBtn.disabled = true;
     connectBtn.textContent = 'Please Log In';
     return;
   }
 
-  console.log('✅ Ready for bank statement connection', { applicationId: applicationId || 'none', userId });
+  // Hide checkmark until verified
+  if (checkmark) checkmark.style.display = 'none';
 
-  // --- Shared verified state ---
-  const applyVerifiedState = (details = {}) => {
+  // ── TruID state ───────────────────────────────────────────────
+  let _collectionId = null;
+  let _pollingTimer = null;
+
+  function setStatus(text, type) {
+    statusEl.textContent = text;
+    statusEl.style.color = type === 'error' ? '#dc2626' : type === 'success' ? '#16a34a' : '#374151';
+  }
+
+  function setChip(label, type) {
+    if (!statusChip) return;
+    statusChip.textContent = label;
+    statusChip.style.background = type === 'success' ? '#dcfce7' : type === 'error' ? '#fee2e2' : '#f3f4f6';
+    statusChip.style.color = type === 'success' ? '#16a34a' : type === 'error' ? '#dc2626' : '#374151';
+  }
+
+  function setCheckmark(visible) {
+    if (checkmark) checkmark.style.display = visible ? '' : 'none';
+  }
+
+  function setBtnState(loading) {
+    connectBtn.disabled = loading;
+    connectBtn.textContent = loading ? 'Connecting…' : 'Connect Bank via TruID';
+  }
+
+  function stopPolling() {
+    if (_pollingTimer) { clearInterval(_pollingTimer); _pollingTimer = null; }
+  }
+
+  function applyVerifiedState(details = {}) {
     const isManual = details.isManual === true;
+    setCheckmark(true);
+    connectBtn.disabled = true;
+    connectBtn.style.opacity = '0.5';
+    connectBtn.style.cursor = 'not-allowed';
+    connectBtn.textContent = isManual ? 'Statement Uploaded ✓' : 'Bank Connected ✓';
 
-    if (checkmark) checkmark.classList.add('visible');
-    if (connectBtn) {
-      connectBtn.disabled = true;
-      connectBtn.style.opacity = '0.5';
-      connectBtn.style.cursor = 'not-allowed';
-      connectBtn.textContent = isManual ? 'Statement Uploaded ✓' : 'Coming Soon';
-    }
-
-    // Disable manual upload too
     const manualBtn = document.getElementById('bankstatementUploadBtn');
     const manualFile = document.getElementById('bankstatementFile');
     if (manualBtn) { manualBtn.disabled = true; manualBtn.style.opacity = '0.5'; manualBtn.style.cursor = 'not-allowed'; manualBtn.textContent = 'Uploaded ✓'; }
     if (manualFile) manualFile.disabled = true;
 
-    if (statusChip) {
-      statusChip.textContent = isManual ? 'Uploaded' : 'Pending';
-      statusChip.classList.add('success');
-    }
+    setChip(isManual ? 'Uploaded' : 'Connected', 'success');
 
-    if (existingInfo && isManual) {
-      const connectedDate = new Date(details.capturedAt || details.captured_at || details.last_updated || details.updatedAt || Date.now()).toLocaleDateString();
+    if (existingInfo) {
+      const dateStr = new Date(details.capturedAt || details.captured_at || Date.now()).toLocaleDateString();
       existingInfo.style.color = '#1f8c5c';
-      existingInfo.innerHTML = `✓ Bank statement uploaded on ${connectedDate}`;
+      existingInfo.innerHTML = isManual
+        ? `✓ Bank statement uploaded on ${dateStr}`
+        : `✓ Bank connected via TruID on ${dateStr}`;
     }
-  };
 
-  // --- TruID connect button (disabled - coming soon) ---
-  connectBtn.disabled = true;
-  connectBtn.style.opacity = '0.5';
-  connectBtn.style.cursor = 'not-allowed';
-  connectBtn.textContent = 'Coming Soon';
-  status.textContent = 'TruID integration coming soon. Use manual upload for now.';
-  status.style.color = '#7a7a7a';
+    stopPolling();
+    window.dispatchEvent(new CustomEvent('document:uploaded', { detail: { fileType: 'bank_statement' } }));
+  }
 
-  // Check for existing manual upload
+  // ── STEP 3: Capture bank data after consent completes ─────────
+  async function captureData(collectionId) {
+    setStatus('Retrieving your bank data…', 'info');
+    try {
+      const r = await fetch('/api/truid/capture', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ collectionId })
+      });
+      const data = await r.json();
+      if (!data.success) throw new Error(data.error || 'Capture failed');
+
+      const s = data.snapshot || {};
+      const summary = [
+        s.bankName ? 'Bank: ' + s.bankName : null,
+        s.avgMonthlyIncome ? 'Avg income: R' + Math.round(s.avgMonthlyIncome).toLocaleString() : null,
+        s.monthsCaptured ? s.monthsCaptured + ' months captured' : null
+      ].filter(Boolean).join(' · ');
+
+      setStatus('✓ Bank connected' + (summary ? ': ' + summary : ''), 'success');
+      setChip('Connected', 'success');
+      setCheckmark(true);
+      if (existingInfo) existingInfo.textContent = s.customerName ? 'Verified: ' + s.customerName : '';
+
+      connectBtn.disabled = true;
+      connectBtn.style.opacity = '0.5';
+      connectBtn.style.cursor = 'not-allowed';
+      connectBtn.textContent = 'Bank Connected ✓';
+
+      window.dispatchEvent(new CustomEvent('document:uploaded', { detail: { fileType: 'bank_statement' } }));
+    } catch (err) {
+      setStatus('Failed to retrieve data: ' + err.message, 'error');
+      setChip('Error', 'error');
+    }
+  }
+
+  // ── STEP 2: Poll until TruID status is terminal ───────────────
+  function pollStatus(collectionId, popup) {
+    setStatus('Waiting for bank consent…', 'info');
+    _pollingTimer = setInterval(async () => {
+      try {
+        const r = await fetch('/api/truid/status?collectionId=' + encodeURIComponent(collectionId));
+        const data = await r.json();
+        if (!data.success) return; // transient error — keep polling
+
+        const raw = data.currentStatus;
+        const s = String(raw || '').toUpperCase();
+        const num = Number(raw);
+        const hasNum = Number.isFinite(num);
+
+        // SUCCESS: numeric 2000–2999, or string contains SUCCESS/COMPLETED
+        const isComplete = (hasNum && num >= 2000 && num < 3000)
+          || s.includes('SUCCESS') || s.includes('COMPLETED');
+
+        // FAILURE: string contains FAILED/CANCELLED/ERROR
+        const isFailed = s.includes('FAILED') || s.includes('CANCELLED') || s.includes('ERROR');
+
+        if (isComplete) {
+          stopPolling();
+          if (popup && !popup.closed) popup.close();
+          setStatus('Consent received, downloading data…', 'info');
+          captureData(collectionId);
+        } else if (isFailed) {
+          stopPolling();
+          if (popup && !popup.closed) popup.close();
+          setStatus('Bank consent was cancelled or failed. Please try again.', 'error');
+          setChip('Failed', 'error');
+          setBtnState(false);
+        }
+      } catch (_) { /* network blip — keep polling */ }
+    }, 3000);
+  }
+
+  // ── Check for existing manual upload first ────────────────────
   try {
     const { checkDocumentExistsByUser } = await import('/user-portal/Services/documentService.js');
     const existingDoc = await checkDocumentExistsByUser(userId, 'bank_statement');
     if (existingDoc) {
       applyVerifiedState({ isManual: true, capturedAt: existingDoc.uploaded_at });
-      status.textContent = '✅ Bank statement already uploaded.';
-      status.style.color = '#28a745';
-      window.dispatchEvent(new CustomEvent('document:uploaded', { detail: { fileType: 'bank_statement' } }));
+      setStatus('✅ Bank statement already uploaded.', 'success');
       return;
     }
   } catch (err) {
     console.warn('Could not check existing manual upload:', err);
   }
 
-  // --- Manual upload ---
+  // ── Fetch user profile for name & ID number ──────────────────
+  let userName = '';
+  let userIdNumber = '';
+  let userEmail = session?.user?.email || '';
+  let userMobile = '';
+
+  try {
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('full_name, first_name, surname, last_name, identity_number, id_number, cell_tel_no, cell_phone, contact_number')
+      .eq('id', userId)
+      .single();
+
+    if (profile) {
+      userName = profile.full_name
+        || [profile.first_name, profile.surname || profile.last_name].filter(Boolean).join(' ')
+        || session?.user?.user_metadata?.full_name
+        || '';
+      userIdNumber = profile.identity_number || profile.id_number
+        || session?.user?.user_metadata?.id_number
+        || '';
+      userMobile = profile.cell_tel_no || profile.cell_phone || profile.contact_number
+        || session?.user?.phone
+        || session?.user?.user_metadata?.phone
+        || '';
+    }
+  } catch (err) {
+    console.warn('Could not load profile for TruID:', err);
+    // Fall back to user_metadata
+    userName = session?.user?.user_metadata?.full_name || session?.user?.user_metadata?.name || '';
+    userIdNumber = session?.user?.user_metadata?.id_number || session?.user?.user_metadata?.idNumber || '';
+  }
+
+  console.log('✅ Ready for bank statement connection', { applicationId: applicationId || 'none', userId, userName: userName ? '✓' : '✗', idNumber: userIdNumber ? '✓' : '✗' });
+
+  // ── STEP 1: TruID connect button ─────────────────────────────
+  connectBtn.addEventListener('click', async () => {
+    stopPolling();
+    setBtnState(true);
+    setStatus('Initialising secure connection…', 'info');
+    setChip('Connecting', 'info');
+
+    if (!userName || !userIdNumber) {
+      setStatus('⚠️ Name and ID number are required. Please complete your profile first.', 'error');
+      setChip('Missing Info', 'error');
+      setBtnState(false);
+      return;
+    }
+
+    try {
+      const r = await fetch('/api/truid/initiate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: userName, idNumber: userIdNumber, email: userEmail, mobile: userMobile })
+      });
+      const data = await r.json();
+
+      if (!data.success || !data.consumerUrl) {
+        throw new Error(data.error || 'Failed to get consent URL');
+      }
+
+      _collectionId = data.collectionId;
+
+      // Open the bank consent screen in a centred popup
+      const w = 500, h = 700;
+      const left = (window.screen.width - w) / 2;
+      const topPos = (window.screen.height - h) / 2;
+      const popup = window.open(
+        data.consumerUrl,
+        'TruID_Bank_Consent',
+        `width=${w},height=${h},top=${topPos},left=${left},scrollbars=yes,resizable=yes`
+      );
+
+      if (!popup) {
+        // Popup blocked — fall back to inline iframe
+        setStatus('Popup blocked. Opening inline…', 'info');
+        const iframeContainer = document.createElement('div');
+        iframeContainer.style.cssText = 'margin-top:16px;border-radius:12px;overflow:hidden;border:1px solid #e5e7eb;';
+        const iframe = document.createElement('iframe');
+        iframe.src = data.consumerUrl;
+        iframe.style.cssText = 'width:100%;height:600px;border:none;';
+        iframe.allow = 'camera; microphone';
+        iframeContainer.appendChild(iframe);
+        panelTruid.appendChild(iframeContainer);
+        pollStatus(data.collectionId, null);
+        return;
+      }
+
+      setStatus('Complete the consent in the popup window…', 'info');
+      pollStatus(data.collectionId, popup);
+
+      // Safety net: detect if popup is closed manually
+      const closedChecker = setInterval(() => {
+        if (popup.closed) clearInterval(closedChecker);
+      }, 1000);
+
+    } catch (err) {
+      setStatus('Error: ' + err.message, 'error');
+      setChip('Error', 'error');
+      setBtnState(false);
+    }
+  });
+
+  // ── Manual upload ─────────────────────────────────────────────
   const manualForm = document.getElementById('bankstatementForm');
   const fileInput = document.getElementById('bankstatementFile');
   const uploadBtn = document.getElementById('bankstatementUploadBtn');
@@ -111,7 +302,6 @@ async function initBankStatementModule() {
   const dropzone = document.getElementById('bsDropzone');
 
   if (manualForm && fileInput && uploadBtn) {
-    // Click dropzone to open file picker
     if (dropzone) {
       dropzone.addEventListener('click', () => fileInput.click());
       dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.style.borderColor = '#111827'; });
@@ -137,18 +327,15 @@ async function initBankStatementModule() {
 
     manualForm.addEventListener('submit', async (e) => {
       e.preventDefault();
-
       const file = fileInput.files[0];
       if (!file) {
-        status.textContent = '⚠️ Please select a file first.';
-        status.style.color = '#ff9800';
+        setStatus('⚠️ Please select a file first.', 'error');
         return;
       }
 
       uploadBtn.disabled = true;
       uploadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Uploading...';
-      status.textContent = 'Uploading bank statement... ⏳';
-      status.style.color = '#7a7a7a';
+      setStatus('Uploading bank statement... ⏳', 'info');
 
       const formData = new FormData();
       formData.append('file', file);
@@ -160,24 +347,19 @@ async function initBankStatementModule() {
           headers: { 'Authorization': `Bearer ${authToken}` },
           body: formData,
         });
-
         const data = await res.json();
 
         if (res.ok) {
           applyVerifiedState({ isManual: true, capturedAt: new Date().toISOString() });
-          status.textContent = '✅ Bank statement uploaded successfully!';
-          status.style.color = '#28a745';
-          window.dispatchEvent(new CustomEvent('document:uploaded', { detail: { fileType: 'bank_statement' } }));
+          setStatus('✅ Bank statement uploaded successfully!', 'success');
         } else {
-          status.textContent = `❌ Upload failed: ${data.message || data.error}`;
-          status.style.color = '#dc3545';
+          setStatus(`❌ Upload failed: ${data.message || data.error}`, 'error');
           uploadBtn.disabled = false;
           uploadBtn.textContent = 'Upload Bank Statement';
         }
       } catch (err) {
         console.error('⚠️ Bank statement upload error:', err);
-        status.textContent = '⚠️ Something went wrong during upload.';
-        status.style.color = '#ff9800';
+        setStatus('⚠️ Something went wrong during upload.', 'error');
         uploadBtn.disabled = false;
         uploadBtn.textContent = 'Upload Bank Statement';
       }

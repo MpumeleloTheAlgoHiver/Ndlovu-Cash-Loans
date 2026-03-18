@@ -29,6 +29,7 @@ const tillSlipRoute = require('./public/user/routes/tillSlipRoute');
 const bankStatementRoute = require('./public/user/routes/bankStatementRoute');
 const idcardRoute = require('./public/user/routes/idcardRoute');
 const kyc = require(path.join(__dirname, 'public', 'user-portal', 'Services', 'kycService'));
+const truidClient = require('./services/truidClient');
 const creditCheckService = require('./services/creditCheckService');
 const { supabase, supabaseService } = require('./config/supabaseServer');
 const { startNotificationScheduler } = require('./services/notificationScheduler');
@@ -356,6 +357,152 @@ app.get('/api/kyc/user/:userId/status', async (req, res) => {
         console.error('KYC status error:', error);
         return res.status(500).json({ error: 'Unable to fetch KYC status' });
     }
+});
+
+// ── TruID Bank Statement API routes ──────────────────────────────────────
+
+// ROUTE 1: Initiate a TruID collection
+// Client POSTs: { name, idNumber, email?, mobile? }
+app.post('/api/truid/initiate', async (req, res) => {
+    const { name, idNumber, email, mobile, services } = req.body || {};
+    if (!name || !idNumber) {
+        return res.status(400).json({ success: false, error: 'name and idNumber are required' });
+    }
+    try {
+        const result = await truidClient.createCollection({ name, idNumber, email, mobile, services });
+        return res.status(201).json({
+            success: true,
+            collectionId: result.collectionId,
+            consumerUrl: result.consumerUrl
+        });
+    } catch (err) {
+        console.error('TruID initiate error:', err.message);
+        return res.status(err.status || 500).json({ success: false, error: err.message });
+    }
+});
+
+// ROUTE 2: Poll collection status
+app.get('/api/truid/status', async (req, res) => {
+    const { collectionId } = req.query;
+    if (!collectionId) {
+        return res.status(400).json({ success: false, error: 'Missing collectionId' });
+    }
+    try {
+        const result = await truidClient.getCollection(collectionId);
+        const d = result.data || {};
+
+        // TruID returns status in multiple possible shapes — normalise them all
+        const statusNode = d.status || d.current_status;
+        const fromStatuses = (() => {
+            if (!Array.isArray(d.statuses) || !d.statuses.length) return null;
+            const sorted = [...d.statuses].sort((a, b) => Date.parse(b.time || b.created || 0) - Date.parse(a.time || a.created || 0));
+            const s = sorted[0];
+            return s.code || s.status || s.state || null;
+        })();
+        const currentStatus = statusNode?.code || statusNode || d.state || fromStatuses || 'UNKNOWN';
+
+        return res.json({ success: true, collectionId, currentStatus, raw: d });
+    } catch (err) {
+        console.error('TruID status error:', err.message);
+        return res.status(err.status || 500).json({ success: false, error: err.message });
+    }
+});
+
+// ROUTE 3: Capture (download) completed bank statement data
+app.post('/api/truid/capture', async (req, res) => {
+    const { collectionId } = req.body || {};
+    if (!collectionId) {
+        return res.status(400).json({ success: false, error: 'Missing collectionId' });
+    }
+    try {
+        const result = await truidClient.getCollectionData(collectionId);
+        const payload = result.data || {};
+        const statement = payload.statement || {};
+        const summaryData = statement.summaryData || [];
+        const accounts = statement.accounts || [];
+        const transactions = accounts[0]?.transactions || [];
+
+        const toNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+
+        const getMode = (vals) => {
+            const counts = new Map();
+            vals.forEach(v => { const k = toNum(v); if (k > 0) counts.set(k, (counts.get(k) || 0) + 1); });
+            if (!counts.size) return null;
+            return Number([...counts.entries()].sort((a, b) => b[1] - a[1])[0][0]);
+        };
+
+        const monthsCaptured = summaryData.length || toNum(statement.summaries) || 0;
+        const divisor = monthsCaptured || 1;
+
+        const totalIncome = summaryData.length
+            ? summaryData.reduce((s, m) => s + toNum(m.total_income), 0)
+            : toNum(statement.income);
+
+        const totalExpenses = summaryData.length
+            ? summaryData.reduce((s, m) => s + toNum(m.total_expenses), 0)
+            : toNum(statement.expenses);
+
+        const avgMonthlyIncome = totalIncome / divisor;
+        const avgMonthlyExpenses = totalExpenses / divisor;
+        const netMonthlyIncome = avgMonthlyIncome - avgMonthlyExpenses;
+
+        // Detect salary: credits whose description or category contains "salary"
+        const salaryCredits = transactions.filter(tx => {
+            const isCreditType = String(tx.type || '').toLowerCase() === 'credit';
+            const hasSalaryText = ['description', 'category_two', 'category_three']
+                .some(f => String(tx[f] || '').toLowerCase().includes('salary'));
+            return isCreditType && hasSalaryText;
+        });
+
+        const mainSalary = getMode(salaryCredits.map(tx => toNum(tx.amount)))
+            || (salaryCredits.length ? totalIncome / divisor : 0)
+            || getMode(summaryData.map(m => toNum(m.main_income)));
+
+        const salaryPaymentDate = salaryCredits.map(tx => tx.date).filter(Boolean).sort().pop() || null;
+
+        const snapshot = {
+            collectionId,
+            bankName: statement.customer?.bank || null,
+            customerName: statement.customer?.name || null,
+            capturedAt: new Date().toISOString(),
+            monthsCaptured,
+            totalIncome,
+            totalExpenses,
+            avgMonthlyIncome,
+            avgMonthlyExpenses,
+            netMonthlyIncome,
+            mainSalary,
+            salaryPaymentDate,
+            summaryData,
+            rawStatement: statement
+        };
+
+        // TODO: persist `snapshot` to your database here (e.g. INSERT INTO bank_statements ...)
+        console.log('[TruID] Captured snapshot for', collectionId, snapshot);
+
+        return res.status(201).json({ success: true, collectionId, snapshot });
+    } catch (err) {
+        console.error('TruID capture error:', err.message);
+        return res.status(err.status || 500).json({ success: false, error: err.message });
+    }
+});
+
+// TruID webhook (receives async completion notifications)
+app.post('/api/truid/webhook', async (req, res) => {
+    try {
+        const body = req.body || {};
+        const collectionId = body.collectionId || body.collection_id || body.id;
+        console.log('[TruID Webhook] Received:', collectionId, body);
+        // In production, trigger getCollectionData + persist here
+        return res.status(200).json({ success: true });
+    } catch (error) {
+        console.error('TruID webhook error:', error.message);
+        return res.status(500).json({ error: 'Webhook processing failed' });
+    }
+});
+app.post('/api/webhooks/truid', (req, res) => {
+    // Alias for primary webhook path
+    req.app.handle(Object.assign(req, { url: '/api/truid/webhook', originalUrl: '/api/truid/webhook' }), res);
 });
 
 // Credit Check API endpoint

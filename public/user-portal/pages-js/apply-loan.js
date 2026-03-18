@@ -735,6 +735,7 @@ async function refreshDocumentStatuses(showSpinner = false) {
     documentServices.checkDocumentExistsByUser(activeUserId, 'bank_statement')
   ]);
 
+  // Bank statement is ready if manually uploaded OR if TruID connected
   const bankStatementReady = bankStatementExists;
 
   updateDocumentButtonState('tillslip', tillSlipExists ? 'complete' : 'pending');
