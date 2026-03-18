@@ -49,7 +49,9 @@ const dashboardData = {
         // Applications will be fetched from Supabase...
         // Example structure:
         // { id: 'APP-001', type: 'Personal Loan', amount: 'R 10,000', date: 'Oct 10, 2025', status: 'Approved' }
-    ]
+    ],
+    allLoans: [],
+    allApplications: []
 };
 
 const CREDIT_SCORE_MAX = 999;
@@ -998,8 +1000,8 @@ async function loadDashboardData() {
                 applyRepaymentChart(dashboardData.repaymentSeries.labels, dashboardData.repaymentSeries.data);
             }
 
-            // Transform loans to dashboard format (show top 3)
-            dashboardData.loans = enrichedLoans.slice(0, 3).map(loan => {
+            // Transform loans to dashboard format (store all; UI preview still slices to 3)
+            dashboardData.loans = enrichedLoans.map(loan => {
                 const readableStatus = loan.status
                     ? `${loan.status.charAt(0).toUpperCase()}${loan.status.slice(1).toLowerCase()}`
                     : 'Active';
@@ -1016,6 +1018,7 @@ async function loadDashboardData() {
                     totalAmount: loan.totalRepayment || loan.principal
                 };
             });
+            dashboardData.allLoans = [...dashboardData.loans];
             
             // Update the active loans section
             populateActiveLoans();
@@ -1042,7 +1045,7 @@ async function loadDashboardData() {
             .neq('status', 'OFFERED') // Exclude OFFERED applications
             .neq('status', 'DISBURSED') // Exclude DISBURSED applications
             .order('created_at', { ascending: false })
-            .limit(5);
+            .limit(30);
         
         if (appsError) {
             console.error('Error fetching applications:', appsError);
@@ -1050,7 +1053,7 @@ async function loadDashboardData() {
             console.log('✅ Found applications:', applications);
             
             // Transform applications to match dashboard format
-            dashboardData.applications = applications.map(app => ({
+            const transformedApplications = applications.map(app => ({
                 id: `APP-${app.id}`,
                 rawId: app.id,
                 type: app.purpose || 'Personal Loan',
@@ -1059,11 +1062,14 @@ async function loadDashboardData() {
                 createdAt: app.created_at,
                 status: app.status
             }));
+            dashboardData.allApplications = transformedApplications;
+            dashboardData.applications = transformedApplications;
             
             // Update the applications section
             populateApplications();
         } else {
             console.log('No applications found');
+            dashboardData.allApplications = [];
         }
         
         // TODO: Fetch payments to calculate total repaid
@@ -1090,73 +1096,6 @@ async function loadDashboardData() {
     }
 }
 
-// Module functions - Will open as popups later
-// --- Active Loans Modal ---
-const LOANS_MODAL_ID = 'active-loans-modal';
-
-function ensureLoansModalStyles() {
-        if (document.getElementById('loans-modal-style')) return;
-        const style = document.createElement('style');
-        style.id = 'loans-modal-style';
-        style.textContent = `
-            #${LOANS_MODAL_ID} { position: fixed; inset: 0; background: rgba(15,23,42,0.35); backdrop-filter: blur(4px); display: none; align-items: center; justify-content: center; z-index: 2000; padding: 24px; }
-            #${LOANS_MODAL_ID}.open { display: flex; }
-            #${LOANS_MODAL_ID} .modal-panel { width: min(1100px, 95vw); max-height: min(85vh, 900px); background: #ffffff; color: #0f172a; border-radius: 18px; overflow: hidden; box-shadow: 0 30px 70px rgba(15,23,42,0.25); border: 1px solid #e2e8f0; display: flex; flex-direction: column; }
-            #${LOANS_MODAL_ID} .modal-header { padding: 18px 24px; display: flex; align-items: center; justify-content: space-between; gap: 12px; background: linear-gradient(135deg, var(--color-primary, #0ea5e9), #f8fafc); border-bottom: 1px solid #e2e8f0; }
-            #${LOANS_MODAL_ID} .modal-title { font-size: 18px; font-weight: 800; letter-spacing: 0.2px; color: #0f172a; }
-            #${LOANS_MODAL_ID} .modal-actions { display: flex; align-items: center; gap: 10px; }
-            #${LOANS_MODAL_ID} .pill { padding: 6px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #eef2ff; color: #312e81; border: 1px solid #c7d2fe; }
-            #${LOANS_MODAL_ID} .close-btn { background: #f8fafc; border: 1px solid #e2e8f0; color: #0f172a; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-weight: 900; cursor: pointer; transition: all 0.2s ease; }
-            #${LOANS_MODAL_ID} .close-btn:hover { background: #e2e8f0; transform: translateY(-1px); }
-            #${LOANS_MODAL_ID} .modal-body { padding: 20px 24px 24px; overflow: hidden; display: flex; flex-direction: column; gap: 16px; }
-            #${LOANS_MODAL_ID} .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; }
-            #${LOANS_MODAL_ID} .stat-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px; }
-            #${LOANS_MODAL_ID} .stat-label { font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; color: #475569; font-weight: 700; }
-            #${LOANS_MODAL_ID} .stat-value { margin-top: 6px; font-size: 22px; font-weight: 800; color: #0f172a; }
-            #${LOANS_MODAL_ID} .loans-scroll { max-height: 520px; overflow-y: auto; padding-right: 6px; }
-            #${LOANS_MODAL_ID} .loan-card { background: #ffffff; border: 1px solid #e2e8f0; border-radius: 14px; padding: 14px; margin-bottom: 12px; box-shadow: 0 4px 12px rgba(15,23,42,0.05); }
-            #${LOANS_MODAL_ID} .loan-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
-            #${LOANS_MODAL_ID} .loan-id { font-weight: 800; letter-spacing: 0.2px; color: #0f172a; }
-            #${LOANS_MODAL_ID} .loan-status { padding: 6px 10px; border-radius: 10px; font-size: 12px; font-weight: 700; border: 1px solid #cbd5e1; background: #f8fafc; color: #0f172a; }
-            #${LOANS_MODAL_ID} .loan-main { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-            #${LOANS_MODAL_ID} .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.4px; color: #475569; font-weight: 700; }
-            #${LOANS_MODAL_ID} .value { font-size: 15px; font-weight: 700; color: #0f172a; margin-top: 4px; }
-            #${LOANS_MODAL_ID} .progress { margin-top: 12px; }
-            #${LOANS_MODAL_ID} .progress-top { display: flex; justify-content: space-between; font-size: 12px; color: #475569; font-weight: 700; margin-bottom: 6px; }
-            #${LOANS_MODAL_ID} .progress-bar { width: 100%; height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
-            #${LOANS_MODAL_ID} .progress-fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--color-primary, #0ea5e9), #0284c7); transition: width 0.3s ease; }
-            #${LOANS_MODAL_ID} .empty-state { text-align: center; padding: 40px 10px; color: #475569; font-weight: 700; }
-        `;
-        document.head.appendChild(style);
-}
-
-function ensureLoansModalRoot() {
-        ensureLoansModalStyles();
-        let root = document.getElementById(LOANS_MODAL_ID);
-        if (!root) {
-                root = document.createElement('div');
-                root.id = LOANS_MODAL_ID;
-                root.innerHTML = `
-                    <div class="modal-panel" role="dialog" aria-modal="true">
-                        <div class="modal-header">
-                            <div class="modal-title">Active Loans</div>
-                            <div class="modal-actions">
-                                <span class="pill" id="loans-count-pill">0 Loans</span>
-                                <button class="close-btn" id="close-loans-modal" aria-label="Close">×</button>
-                            </div>
-                        </div>
-                        <div class="modal-body">
-                            <div class="stats-grid" id="loans-stats"></div>
-                            <div class="loans-scroll" id="loans-scroll"></div>
-                        </div>
-                    </div>`;
-                document.body.appendChild(root);
-                root.addEventListener('click', (e) => { if (e.target === root) closeLoansModal(); });
-                root.querySelector('#close-loans-modal').addEventListener('click', closeLoansModal);
-        }
-        return root;
-}
-
 function formatCurrencySafe(val) {
         const num = Number(val);
         if (Number.isNaN(num)) return 'R 0.00';
@@ -1168,76 +1107,274 @@ function parseRandToNumber(val) {
         return Number(String(val).replace(/[^0-9.-]/g, '')) || 0;
 }
 
-function buildLoansModalContent(loans) {
-        const activeLoans = loans.filter(l => l.status === 'Active' || l.status === 'Offered');
-        const count = activeLoans.length;
-        const totalPrincipal = activeLoans.reduce((sum, l) => sum + parseRandToNumber(l.amount), 0);
-        const totalRemaining = activeLoans.reduce((sum, l) => sum + (parseRandToNumber(l.remaining || l.amount)), 0);
+// Unified swipe modal for Active Loans & Recent Applications
+const DASHBOARD_MODAL_ID = 'dashboard-swipe-modal';
+const swipeModalState = {
+    mode: 'loans',
+    index: 0,
+    touchStartX: null,
+    touchCurrentX: null,
+    isDragging: false
+};
 
-        const statsHtml = `
-            <div class="stat-card"><div class="stat-label">Active / Offered</div><div class="stat-value">${count}</div></div>
-            <div class="stat-card"><div class="stat-label">Total Principal</div><div class="stat-value">${formatCurrencySafe(totalPrincipal)}</div></div>
-            <div class="stat-card"><div class="stat-label">Total Outstanding</div><div class="stat-value">${formatCurrencySafe(totalRemaining)}</div></div>
-        `;
+function ensureDashboardSwipeModalRoot() {
+    let root = document.getElementById(DASHBOARD_MODAL_ID);
+    if (root) return root;
 
-        const listHtml = count === 0 ? '<div class="empty-state">No active loans right now.</div>' : activeLoans.map(loan => {
-                const principal = parseRandToNumber(loan.amount);
-                const remaining = parseRandToNumber(loan.remaining || loan.amount);
-                const progressRaw = principal ? ((principal - remaining) / principal) * 100 : 0;
-                const progress = Math.max(0, Math.min(100, Math.round(progressRaw)));
-                return `
-                    <div class="loan-card">
-                        <div class="loan-head">
-                            <span class="loan-id">${loan.id}</span>
-                            <span class="loan-status">${loan.status}</span>
-                        </div>
-                        <div class="loan-main">
-                            <div>
-                                <div class="label">Amount</div>
-                                <div class="value">${loan.amount}</div>
-                            </div>
-                            <div>
-                                <div class="label">Remaining</div>
-                                <div class="value">${loan.remaining || loan.amount}</div>
-                            </div>
-                            <div>
-                                <div class="label">Next Payment</div>
-                                <div class="value">${loan.nextPayment || 'TBD'}</div>
-                            </div>
-                            <div>
-                                <div class="label">Due Date</div>
-                                <div class="value">${loan.dueDate || 'TBD'}</div>
-                            </div>
-                            <div>
-                                <div class="label">Annual Rate</div>
-                                <div class="value">${loan.interestRate || 'TBD'}</div>
-                            </div>
-                        </div>
-                        <div class="progress">
-                            <div class="progress-top">
-                                <span>Repayment Progress</span>
-                                <span>${progress}%</span>
-                            </div>
-                            <div class="progress-bar"><div class="progress-fill" style="width:${progress}%"></div></div>
-                        </div>
-                    </div>`;
-        }).join('');
+    root = document.createElement('div');
+    root.id = DASHBOARD_MODAL_ID;
+    root.className = 'dashboard-swipe-modal';
+    root.innerHTML = `
+        <div class="swipe-modal-panel" role="dialog" aria-modal="true" aria-label="Dashboard details">
+            <div class="swipe-modal-header">
+                <div>
+                    <div class="swipe-modal-title" id="swipeModalTitle">Active Loans</div>
+                    <div class="swipe-modal-subtitle">Swipe, drag, or use arrows to navigate</div>
+                </div>
+                <div class="swipe-modal-actions">
+                    <span class="swipe-modal-pill" id="swipeModalCount">0 items</span>
+                    <button class="swipe-modal-close" id="swipeModalClose" aria-label="Close modal">×</button>
+                </div>
+            </div>
+            <div class="swipe-modal-body">
+                <button class="swipe-nav prev" id="swipePrevBtn" aria-label="Previous">❮</button>
+                <div class="swipe-viewport" id="swipeViewport">
+                    <div class="swipe-track" id="swipeTrack"></div>
+                </div>
+                <button class="swipe-nav next" id="swipeNextBtn" aria-label="Next">❯</button>
+            </div>
+            <div class="swipe-modal-footer">
+                <div class="swipe-position" id="swipePosition">1 / 1</div>
+                <div class="swipe-dots" id="swipeDots"></div>
+            </div>
+        </div>
+    `;
 
-        const root = ensureLoansModalRoot();
-        root.querySelector('#loans-count-pill').textContent = `${count} Loan${count === 1 ? '' : 's'}`;
-        root.querySelector('#loans-stats').innerHTML = statsHtml;
-        root.querySelector('#loans-scroll').innerHTML = listHtml;
-        root.classList.add('open');
+    document.body.appendChild(root);
+
+    root.addEventListener('click', (event) => {
+        if (event.target === root) {
+            closeDashboardSwipeModal();
+        }
+    });
+
+    root.querySelector('#swipeModalClose').addEventListener('click', closeDashboardSwipeModal);
+    root.querySelector('#swipePrevBtn').addEventListener('click', () => moveSwipeModal(-1));
+    root.querySelector('#swipeNextBtn').addEventListener('click', () => moveSwipeModal(1));
+
+    const viewport = root.querySelector('#swipeViewport');
+    viewport.addEventListener('touchstart', onSwipeStart, { passive: true });
+    viewport.addEventListener('touchmove', onSwipeMove, { passive: true });
+    viewport.addEventListener('touchend', onSwipeEnd);
+    viewport.addEventListener('mousedown', onSwipeStart);
+    viewport.addEventListener('mousemove', onSwipeMove);
+    viewport.addEventListener('mouseup', onSwipeEnd);
+    viewport.addEventListener('mouseleave', onSwipeEnd);
+
+    document.addEventListener('keydown', (event) => {
+        const modal = document.getElementById(DASHBOARD_MODAL_ID);
+        if (!modal || !modal.classList.contains('open')) return;
+        if (event.key === 'Escape') closeDashboardSwipeModal();
+        if (event.key === 'ArrowLeft') moveSwipeModal(-1);
+        if (event.key === 'ArrowRight') moveSwipeModal(1);
+    });
+
+    return root;
 }
 
-function closeLoansModal() {
-        const root = document.getElementById(LOANS_MODAL_ID);
-        if (root) root.classList.remove('open');
+function getSwipeModalItems() {
+    if (swipeModalState.mode === 'applications') {
+        return (dashboardData.allApplications || []).map(app => ({
+            heading: app.id,
+            status: app.status || 'Pending',
+            metaRows: [
+                { label: 'Type', value: app.type || 'Personal Loan' },
+                { label: 'Amount', value: app.amount || 'R 0.00' },
+                { label: 'Created', value: app.date || 'N/A' }
+            ],
+            footerLabel: 'Application Status',
+            footerValue: app.status || 'Pending',
+            icon: 'fa-file-lines'
+        }));
+    }
+
+    return (dashboardData.allLoans || dashboardData.loans || [])
+        .filter(loan => loan.status === 'Active' || loan.status === 'Offered')
+        .map(loan => {
+            const principal = parseRandToNumber(loan.amount);
+            const remaining = parseRandToNumber(loan.remaining || loan.amount);
+            const progressRaw = principal ? ((principal - remaining) / principal) * 100 : 0;
+            const progress = Math.max(0, Math.min(100, Math.round(progressRaw)));
+
+            return {
+                heading: loan.id,
+                status: loan.status || 'Active',
+                metaRows: [
+                    { label: 'Total Amount', value: loan.amount || 'R 0.00' },
+                    { label: 'Remaining', value: loan.remaining || loan.amount || 'R 0.00' },
+                    { label: 'Next Payment', value: loan.nextPayment || 'TBD' },
+                    { label: 'Due Date', value: loan.dueDate || 'TBD' },
+                    { label: 'Annual Rate', value: loan.interestRate || 'TBD' }
+                ],
+                footerLabel: 'Repayment Progress',
+                footerValue: `${progress}%`,
+                progress,
+                icon: 'fa-money-bill-wave'
+            };
+        });
+}
+
+function renderSwipeModal() {
+    const root = ensureDashboardSwipeModalRoot();
+    const items = getSwipeModalItems();
+    const titleEl = root.querySelector('#swipeModalTitle');
+    const countEl = root.querySelector('#swipeModalCount');
+    const trackEl = root.querySelector('#swipeTrack');
+    const dotsEl = root.querySelector('#swipeDots');
+    const positionEl = root.querySelector('#swipePosition');
+
+    titleEl.textContent = swipeModalState.mode === 'applications' ? 'Recent Applications' : 'Active Loans';
+    countEl.textContent = `${items.length} item${items.length === 1 ? '' : 's'}`;
+
+    if (!items.length) {
+        trackEl.innerHTML = `<div class="swipe-slide"><div class="swipe-card empty">No records found.</div></div>`;
+        dotsEl.innerHTML = '';
+        positionEl.textContent = '0 / 0';
+        trackEl.style.transform = 'translateX(0)';
+        return;
+    }
+
+    if (swipeModalState.index > items.length - 1) {
+        swipeModalState.index = items.length - 1;
+    }
+
+    trackEl.innerHTML = items.map((item) => {
+        const rows = item.metaRows.map(row => `
+            <div class="swipe-row">
+                <span class="swipe-label">${row.label}</span>
+                <span class="swipe-value">${row.value}</span>
+            </div>
+        `).join('');
+
+        const progressMarkup = Number.isFinite(item.progress)
+            ? `<div class="swipe-progress"><div class="swipe-progress-fill" style="width:${item.progress}%"></div></div>`
+            : '';
+
+        return `
+            <div class="swipe-slide">
+                <div class="swipe-card">
+                    <div class="swipe-card-head">
+                        <div class="swipe-card-title-wrap">
+                            <i class="fas ${item.icon}"></i>
+                            <h3>${item.heading}</h3>
+                        </div>
+                        <span class="swipe-status">${item.status}</span>
+                    </div>
+                    <div class="swipe-meta-grid">${rows}</div>
+                    <div class="swipe-footer">
+                        <span>${item.footerLabel}</span>
+                        <strong>${item.footerValue}</strong>
+                    </div>
+                    ${progressMarkup}
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    dotsEl.innerHTML = items.map((_, i) => `
+        <button class="swipe-dot ${i === swipeModalState.index ? 'active' : ''}" data-index="${i}" aria-label="Go to slide ${i + 1}"></button>
+    `).join('');
+
+    dotsEl.querySelectorAll('.swipe-dot').forEach(dot => {
+        dot.addEventListener('click', () => {
+            swipeModalState.index = Number(dot.dataset.index);
+            updateSwipeTrack();
+        });
+    });
+
+    updateSwipeTrack();
+}
+
+function updateSwipeTrack() {
+    const root = document.getElementById(DASHBOARD_MODAL_ID);
+    if (!root) return;
+
+    const items = getSwipeModalItems();
+    const trackEl = root.querySelector('#swipeTrack');
+    const dots = root.querySelectorAll('.swipe-dot');
+    const positionEl = root.querySelector('#swipePosition');
+
+    if (!items.length) {
+        trackEl.style.transform = 'translateX(0)';
+        positionEl.textContent = '0 / 0';
+        return;
+    }
+
+    swipeModalState.index = Math.max(0, Math.min(swipeModalState.index, items.length - 1));
+    trackEl.style.transform = `translateX(-${swipeModalState.index * 100}%)`;
+    positionEl.textContent = `${swipeModalState.index + 1} / ${items.length}`;
+
+    dots.forEach((dot, index) => {
+        dot.classList.toggle('active', index === swipeModalState.index);
+    });
+}
+
+function moveSwipeModal(direction) {
+    const items = getSwipeModalItems();
+    if (!items.length) return;
+    swipeModalState.index += direction;
+    if (swipeModalState.index < 0) swipeModalState.index = 0;
+    if (swipeModalState.index > items.length - 1) swipeModalState.index = items.length - 1;
+    updateSwipeTrack();
+}
+
+function getClientX(event) {
+    if (event.touches && event.touches[0]) return event.touches[0].clientX;
+    return event.clientX;
+}
+
+function onSwipeStart(event) {
+    swipeModalState.isDragging = true;
+    swipeModalState.touchStartX = getClientX(event);
+    swipeModalState.touchCurrentX = swipeModalState.touchStartX;
+}
+
+function onSwipeMove(event) {
+    if (!swipeModalState.isDragging) return;
+    swipeModalState.touchCurrentX = getClientX(event);
+}
+
+function onSwipeEnd() {
+    if (!swipeModalState.isDragging) return;
+    const delta = (swipeModalState.touchCurrentX || 0) - (swipeModalState.touchStartX || 0);
+    const threshold = 50;
+    if (Math.abs(delta) > threshold) {
+        moveSwipeModal(delta > 0 ? -1 : 1);
+    }
+    swipeModalState.isDragging = false;
+    swipeModalState.touchStartX = null;
+    swipeModalState.touchCurrentX = null;
+}
+
+function openDashboardSwipeModal(mode) {
+    swipeModalState.mode = mode;
+    swipeModalState.index = 0;
+    const root = ensureDashboardSwipeModalRoot();
+    renderSwipeModal();
+    root.classList.add('open');
+    document.body.classList.add('swipe-modal-open');
+}
+
+function closeDashboardSwipeModal() {
+    const root = document.getElementById(DASHBOARD_MODAL_ID);
+    if (root) {
+        root.classList.remove('open');
+    }
+    document.body.classList.remove('swipe-modal-open');
 }
 
 window.openLoansModule = function() {
-        ensureLoansModalRoot();
-        buildLoansModalContent(dashboardData.loans);
+    openDashboardSwipeModal('loans');
 };
 
 window.openChartsModule = function() {
@@ -1245,7 +1382,7 @@ window.openChartsModule = function() {
 };
 
 window.openApplicationsModule = function() {
-    alert('Application History Module - Coming Soon!\nThis will show all past applications in a popup.');
+    openDashboardSwipeModal('applications');
 };
 
 window.openTransactionsModule = function() {
