@@ -369,7 +369,24 @@ app.post('/api/truid/initiate', async (req, res) => {
         return res.status(400).json({ success: false, error: 'name and idNumber are required' });
     }
     try {
+        const start = Date.now();
+        console.log('[TruID initiate request]', {
+            hasName: Boolean(name),
+            hasIdNumber: Boolean(idNumber),
+            idNumberLength: String(idNumber || '').replace(/\D/g, '').length,
+            hasEmail: Boolean(email),
+            hasMobile: Boolean(mobile),
+            servicesCount: Array.isArray(services) ? services.length : 0
+        });
+
         const result = await truidClient.createCollection({ name, idNumber, email, mobile, services });
+
+        console.log('[TruID initiate response]', {
+            elapsedMs: Date.now() - start,
+            collectionId: result.collectionId,
+            consentId: result.consentId || null,
+            consumerUrl: result.consumerUrl || null
+        });
 
         if (!result.consumerUrl) {
             console.error('TruID initiate error: missing consumerUrl', {
@@ -388,7 +405,11 @@ app.post('/api/truid/initiate', async (req, res) => {
             consumerUrl: result.consumerUrl
         });
     } catch (err) {
-        console.error('TruID initiate error:', err.message);
+        console.error('TruID initiate error:', {
+            message: err.message,
+            status: err.status || 500,
+            code: err.code || null
+        });
         return res.status(err.status || 500).json({ success: false, error: err.message });
     }
 });

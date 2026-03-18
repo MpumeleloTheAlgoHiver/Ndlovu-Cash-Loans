@@ -85,6 +85,7 @@ class TruIDClient {
     };
 
     try {
+      const start = Date.now();
       const response = await this.consultantClient.post('/collections', payload);
       const locationHeader = response.headers['location'];
       const consentHeader = response.headers['x-consent'];
@@ -99,10 +100,30 @@ class TruIDClient {
 
       const consumerUrl = this.resolveConsumerUrl(data, consentHeader);
 
+      console.log('[TruID createCollection success]', {
+        elapsedMs: Date.now() - start,
+        status: response.status,
+        hasBody: Boolean(data),
+        bodyKeys: data ? Object.keys(data).slice(0, 12) : [],
+        hasLocationHeader: Boolean(locationHeader),
+        hasConsentHeader: Boolean(consentHeader),
+        collectionId,
+        consumerUrlHost: consumerUrl ? (() => {
+          try { return new URL(consumerUrl).host; } catch (_) { return 'invalid-url'; }
+        })() : null
+      });
+
       return { success: true, collectionId, consumerUrl, consentId: consentHeader, data };
     } catch (error) {
       const status = error.response?.status || 500;
       const details = JSON.stringify(error.response?.data || error.message);
+      console.error('[TruID createCollection error]', {
+        code: error.code,
+        status,
+        message: error.message,
+        details: error.response?.data || error.message,
+        timeoutMs: this.consultantClient.defaults.timeout
+      });
       const err = new Error(`TruID createCollection failed: ${details}`);
       err.status = status;
       throw err;
