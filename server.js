@@ -370,6 +370,18 @@ app.post('/api/truid/initiate', async (req, res) => {
     }
     try {
         const result = await truidClient.createCollection({ name, idNumber, email, mobile, services });
+
+        if (!result.consumerUrl) {
+            console.error('TruID initiate error: missing consumerUrl', {
+                collectionId: result.collectionId,
+                hasData: Boolean(result.data)
+            });
+            return res.status(502).json({
+                success: false,
+                error: 'TruID did not return a valid consumer URL. Please try again.'
+            });
+        }
+
         return res.status(201).json({
             success: true,
             collectionId: result.collectionId,
