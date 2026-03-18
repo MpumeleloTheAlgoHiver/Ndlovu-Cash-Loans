@@ -5,15 +5,32 @@ const BASE_URL = 'https://verification.didit.me';
 // In-memory session storage (use database in production)
 const sessions = new Map();
 
-function verifyWebhookSignature(payload, signature) {
+function verifyWebhookSignature(payload, signature, rawBody) {
   try {
     const WEBHOOK_SECRET_KEY = process.env.DIDIT_WEBHOOK_SECRET_KEY;
+    if (!WEBHOOK_SECRET_KEY || !signature) return false;
+
+    const normalizedSignature = String(signature)
+      .replace(/^sha256=/i, '')
+      .trim()
+      .toLowerCase();
+
     const hmac = crypto.createHmac('sha256', WEBHOOK_SECRET_KEY);
-    hmac.update(JSON.stringify(payload));
-    const computedSignature = hmac.digest('hex');
+    const bodyToSign = rawBody && rawBody.length
+      ? rawBody
+      : Buffer.from(JSON.stringify(payload || {}), 'utf8');
+
+    hmac.update(bodyToSign);
+    const computedSignature = hmac.digest('hex').toLowerCase();
+
+    const incomingBuffer = Buffer.from(normalizedSignature, 'utf8');
+    const computedBuffer = Buffer.from(computedSignature, 'utf8');
+
+    if (incomingBuffer.length !== computedBuffer.length) return false;
+
     return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(computedSignature)
+      incomingBuffer,
+      computedBuffer
     );
   } catch (error) {
     return false;

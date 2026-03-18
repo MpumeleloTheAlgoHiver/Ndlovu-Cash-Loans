@@ -13,7 +13,12 @@ const PORT = process.env.PORT || 3000;
 app.use(express.json({
     verify: (req, res, buf) => {
         const url = req.originalUrl || '';
-        if (url.startsWith('/api/docuseal/webhook')) {
+        if (
+            url.startsWith('/api/docuseal/webhook') ||
+            url.startsWith('/api/kyc/webhook') ||
+            url.startsWith('/api/didit/webhook') ||
+            url.startsWith('/api/webhooks/didit')
+        ) {
             req.rawBody = Buffer.from(buf);
         }
     }
@@ -301,22 +306,38 @@ app.post('/api/kyc/create-session', async (req, res) => {
     }
 });
 
-app.post('/api/kyc/webhook', async (req, res) => {
+async function handleDiditWebhook(req, res) {
     try {
-        const signature = req.headers['x-signature'];
-        const payload = req.body;
+        const signature =
+            req.headers['x-signature'] ||
+            req.headers['x-didit-signature'] ||
+            req.headers['didit-signature'] ||
+            req.headers['x-webhook-signature'];
 
-        if (!signature || !kyc.verifyWebhookSignature(payload, signature)) {
-            return res.status(401).json({ error: 'Invalid signature' });
+        const payload = req.body;
+        const rawBody = req.rawBody;
+
+        const hasWebhookSecret = Boolean(process.env.DIDIT_WEBHOOK_SECRET_KEY);
+
+        if (hasWebhookSecret) {
+            if (!signature || !kyc.verifyWebhookSignature(payload, signature, rawBody)) {
+                return res.status(401).json({ error: 'Invalid signature' });
+            }
+        } else {
+            console.warn('⚠️ DIDIT_WEBHOOK_SECRET_KEY is not set. Accepting Didit webhook without signature verification.');
         }
 
-        kyc.updateSessionFromWebhook(payload);
+        await kyc.updateSessionFromWebhook(payload);
         return res.status(200).json({ received: true });
     } catch (error) {
         console.error('KYC webhook error:', error);
         return res.status(500).json({ error: 'Webhook processing failed' });
     }
-});
+}
+
+app.post('/api/kyc/webhook', handleDiditWebhook);
+app.post('/api/didit/webhook', handleDiditWebhook);
+app.post('/api/webhooks/didit', handleDiditWebhook);
 
 app.get('/api/kyc/session/:sessionId', async (req, res) => {
     try {
