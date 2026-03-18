@@ -2,6 +2,7 @@
 const axios = require('axios');
 
 const readEnv = (key) => process.env[key];
+const DEFAULT_TRUID_REDIRECT_URL = 'https://ndlovu-cash-loans.vercel.app/user-portal/?page=dashboard';
 
 class TruIDClient {
   constructor() {
@@ -10,7 +11,7 @@ class TruIDClient {
     this.baseURL = (readEnv('TRUID_API_BASE') || 'https://api.truidconnect.io').replace(/\/$/, '');
     this.companyId = readEnv('COMPANY_ID');
     this.brandId = readEnv('BRAND_ID');
-    this.redirectUrl = readEnv('REDIRECT_URL');
+    this.redirectUrl = readEnv('REDIRECT_URL') || DEFAULT_TRUID_REDIRECT_URL;
     this.webhookUrl = readEnv('WEBHOOK_URL');
 
     const headers = {
@@ -35,7 +36,7 @@ class TruIDClient {
 
   // Validates all required env vars are present before any API call
   validateSetup() {
-    const missing = ['TRUID_API_KEY','COMPANY_ID','BRAND_ID','REDIRECT_URL','WEBHOOK_URL']
+    const missing = ['TRUID_API_KEY','COMPANY_ID','BRAND_ID','WEBHOOK_URL']
       .filter(k => !readEnv(k));
     if (missing.length) throw new Error(`Missing env vars: ${missing.join(', ')}`);
   }
