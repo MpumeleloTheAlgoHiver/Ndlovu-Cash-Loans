@@ -41,12 +41,14 @@ class TruIDClient {
   }
 
   // Resolves the consumer URL from multiple possible response shapes
-  resolveConsumerUrl(data, consentId) {
-    // Check body fields first — never use locationHeader (it's the API resource URL, not consumer-facing)
+  resolveConsumerUrl(data, consentId, locationHeader) {
+    // Check body fields first
     const fromBody = data?.consumerUrl || data?.links?.consumer || data?.inviteUrl || null;
     if (fromBody) return fromBody;
-    // Fallback: build consent URL from x-consent header
-    if (consentId) return `https://www.truidconnect.io/consents/${consentId}`;
+    // Use Location header directly (e.g. https://www.truidconnect.io/<id>) — this showed the TruID UI
+    if (locationHeader) return locationHeader;
+    // Last resort: build from consentId without /consents/ path
+    if (consentId) return `https://www.truidconnect.io/${consentId}`;
     return null;
   }
 
@@ -95,7 +97,7 @@ class TruIDClient {
         collectionId = parts[parts.length - 1] || null;
       }
 
-      const consumerUrl = this.resolveConsumerUrl(data, consentHeader);
+      const consumerUrl = this.resolveConsumerUrl(data, consentHeader, locationHeader);
 
       // Build ALL candidate URLs so we can diagnose which one works
       const candidateUrls = {
