@@ -46,9 +46,10 @@ class TruIDClient {
     if (fromBody) return fromBody;
 
     if (consentId) {
-      const consumerHost = readEnv('TRUID_DOMAIN') || 'www.truidconnect.io';
+      const configuredDomain = readEnv('TRUID_DOMAIN') || 'truidconnect.io';
+      const consumerHost = configuredDomain.startsWith('www.') ? configuredDomain : `www.${configuredDomain}`;
       const consumerScheme = readEnv('TRUID_SCHEME') || 'https';
-      const consumerPath = (readEnv('TRUID_CONSUMER_PATH') || 'credentials').replace(/^\/+|\/+$/g, '');
+      const consumerPath = (readEnv('TRUID_CONSUMER_PATH') || 'consents').replace(/^\/+|\/+$/g, '');
       return `${consumerScheme}://${consumerHost}/${consumerPath}/${consentId}`;
     }
     return null;
