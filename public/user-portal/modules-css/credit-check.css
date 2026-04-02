@@ -281,7 +281,7 @@
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding-top: 0.5rem;
+  padding-top: 0.9rem;
 }
 
 .credit-check-right-section .credit-circle-outer {
@@ -289,6 +289,7 @@
   min-height: auto;
   height: auto;
   justify-content: flex-start;
+  padding-left: 1rem;
 }
 
 #start-credit-check-btn {
