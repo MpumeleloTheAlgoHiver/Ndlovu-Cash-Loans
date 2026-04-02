@@ -390,7 +390,11 @@ export async function performCreditCheck(applicationId, userData) {
         const result = await response.json();
         
         if (!response.ok) {
-            throw new Error(result.error || 'Credit check failed');
+            const apiError = new Error(result.error || 'Credit check failed');
+            apiError.status = response.status;
+            apiError.alreadyChecked = result?.alreadyChecked === true;
+            apiError.existing = result?.existing || null;
+            throw apiError;
         }
         
         console.log('✅ Credit check completed:', result);

@@ -805,6 +805,18 @@ window.startCreditCheckSilent = async function(button) {
   try {
     isProcessing = true;
 
+    const hasExistingCheck = await checkExistingCreditCheck();
+    if (hasExistingCheck) {
+      window.showToast?.('Already Completed', 'Your credit check is already on file. Continuing to next step.', 'info');
+      isProcessing = false;
+      if (typeof loadPage === 'function') {
+        loadPage('apply-loan-3');
+      } else {
+        window.location.href = '/user-portal/?page=apply-loan-3';
+      }
+      return;
+    }
+
     // Transition button to loading state
     const label = button.querySelector('.scc-label');
     const spinner = button.querySelector('.scc-spinner');
@@ -957,6 +969,29 @@ window.startCreditCheckSilent = async function(button) {
     }
 
   } catch (error) {
+    if (error?.alreadyChecked) {
+      const existingScore = error?.existing?.creditScore;
+      const existingRisk = error?.existing?.riskType;
+
+      if (existingScore || existingRisk) {
+        _showCreditResultPopup(existingScore || '---', existingRisk || 'Existing');
+      }
+
+      window.showToast?.('Already Completed', 'Credit check already exists for your account.', 'info');
+
+      isProcessing = false;
+      const label = button.querySelector('.scc-label');
+      const spinner = button.querySelector('.scc-spinner');
+      if (spinner) spinner.style.display = 'none';
+      if (label) {
+        label.style.display = '';
+        label.innerHTML = 'Done&nbsp;<i class="fas fa-check"></i>';
+      }
+      button.classList.remove('is-loading');
+      button.classList.add('is-done');
+      return;
+    }
+
     console.error('❌ Silent credit check error:', error);
     window.showToast?.('Error', error.message || 'An unexpected error occurred', 'error');
     _resetCircleButton(button);

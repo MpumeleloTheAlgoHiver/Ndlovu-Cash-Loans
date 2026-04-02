@@ -731,8 +731,59 @@ app.post('/api/credit-check', async (req, res) => {
             ? authHeader.slice(7)
             : null;
 
+        let authenticatedUserId = null;
+        if (authToken) {
+            const { data: authData, error: authError } = await supabaseService.auth.getUser(authToken);
+            if (!authError && authData?.user?.id) {
+                authenticatedUserId = authData.user.id;
+            }
+        }
+
+        const requestedUserId = userData?.user_id || null;
+        const effectiveUserId = authenticatedUserId || requestedUserId;
+
+        if (!effectiveUserId) {
+            return res.status(400).json({ error: 'Unable to resolve user identity for credit check' });
+        }
+
+        if (requestedUserId && authenticatedUserId && requestedUserId !== authenticatedUserId) {
+            return res.status(403).json({ error: 'Credit check user mismatch' });
+        }
+
+        const { data: existingCompletedCheck, error: existingCheckError } = await supabaseService
+            .from('credit_checks')
+            .select('id, credit_score, score_band, checked_at, application_id')
+            .eq('user_id', effectiveUserId)
+            .eq('status', 'completed')
+            .order('checked_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        if (existingCheckError) {
+            console.error('Credit check duplicate guard query error:', existingCheckError);
+        }
+
+        const hasExistingCompletedCheck = Boolean(existingCompletedCheck?.id);
+
+        if (hasExistingCompletedCheck) {
+            return res.status(409).json({
+                success: false,
+                alreadyChecked: true,
+                error: 'Credit check already completed for this user',
+                existing: {
+                    creditScore: existingCompletedCheck.credit_score || null,
+                    riskType: existingCompletedCheck.score_band || null,
+                    checkedAt: existingCompletedCheck.checked_at || null,
+                    applicationId: existingCompletedCheck.application_id || null
+                }
+            });
+        }
+
         const result = await creditCheckService.performCreditCheck(
-            userData,
+            {
+                ...userData,
+                user_id: effectiveUserId
+            },
             applicationId,
             authToken
         );
