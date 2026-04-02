@@ -277,6 +277,17 @@
   min-height: 260px;
 }
 
+.credit-check-right-section {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.credit-check-right-section .credit-circle-outer {
+  width: 100%;
+  min-height: 100%;
+}
+
 #start-credit-check-btn {
   width: 180px;
   height: 180px;
@@ -600,6 +611,10 @@
 
 /* Mobile adjustments for circular button */
 @media (max-width: 768px) {
+  .credit-check-right-section {
+    display: block;
+  }
+
   .credit-circle-outer {
     min-height: 200px;
   }

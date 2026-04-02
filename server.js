@@ -361,6 +361,118 @@ app.get('/api/kyc/user/:userId/status', async (req, res) => {
 
 // ── TruID Bank Statement API routes ──────────────────────────────────────
 
+const parseTruIDStatus = (payload = {}) => {
+    const statusNode = payload.status || payload.current_status;
+    const fromStatuses = (() => {
+        if (!Array.isArray(payload.statuses) || !payload.statuses.length) return null;
+        const sorted = [...payload.statuses].sort((a, b) => Date.parse(b.time || b.created || 0) - Date.parse(a.time || a.created || 0));
+        const latest = sorted[0] || {};
+        return latest.code || latest.status || latest.state || null;
+    })();
+
+    const raw = statusNode?.code || statusNode || payload.state || fromStatuses || 'UNKNOWN';
+    return String(raw || 'UNKNOWN').toUpperCase();
+};
+
+const isTruIDCompleteStatus = (status) => {
+    const normalized = String(status || '').toUpperCase();
+    return ['COMPLETED', 'COMPLETE', 'SUCCESS', 'SUCCEEDED', 'READY', 'DONE'].includes(normalized);
+};
+
+const normalizeUuid = (value) => {
+    const raw = typeof value === 'string' ? value.trim() : '';
+    if (!raw) return null;
+    const uuidV4Like = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    return uuidV4Like.test(raw) ? raw : null;
+};
+
+const persistTruIDCollection = async (record = {}) => {
+    const now = new Date().toISOString();
+    const payload = {
+        ...record,
+        updated_at: now
+    };
+
+    if (!payload.collection_id) {
+        throw new Error('collection_id is required for TruID persistence');
+    }
+
+    const { error } = await supabaseService
+        .from('truid_collections')
+        .upsert(payload, { onConflict: 'collection_id' });
+
+    if (error) {
+        throw error;
+    }
+};
+
+const buildTruIDSnapshot = (collectionId, payload = {}) => {
+    const statement = payload.statement || {};
+    const summaryData = statement.summaryData || [];
+    const accounts = statement.accounts || [];
+    const transactions = accounts[0]?.transactions || [];
+
+    const toNum = (v) => {
+        const n = Number(v);
+        return Number.isFinite(n) ? n : 0;
+    };
+
+    const getMode = (vals) => {
+        const counts = new Map();
+        vals.forEach(v => {
+            const k = toNum(v);
+            if (k > 0) counts.set(k, (counts.get(k) || 0) + 1);
+        });
+        if (!counts.size) return null;
+        return Number([...counts.entries()].sort((a, b) => b[1] - a[1])[0][0]);
+    };
+
+    const monthsCaptured = summaryData.length || toNum(statement.summaries) || 0;
+    const divisor = monthsCaptured || 1;
+
+    const totalIncome = summaryData.length
+        ? summaryData.reduce((s, m) => s + toNum(m.total_income), 0)
+        : toNum(statement.income);
+
+    const totalExpenses = summaryData.length
+        ? summaryData.reduce((s, m) => s + toNum(m.total_expenses), 0)
+        : toNum(statement.expenses);
+
+    const avgMonthlyIncome = totalIncome / divisor;
+    const avgMonthlyExpenses = totalExpenses / divisor;
+    const netMonthlyIncome = avgMonthlyIncome - avgMonthlyExpenses;
+
+    const salaryCredits = transactions.filter(tx => {
+        const isCreditType = String(tx.type || '').toLowerCase() === 'credit';
+        const hasSalaryText = ['description', 'category_two', 'category_three']
+            .some(f => String(tx[f] || '').toLowerCase().includes('salary'));
+        return isCreditType && hasSalaryText;
+    });
+
+    const mainSalary = getMode(salaryCredits.map(tx => toNum(tx.amount)))
+        || (salaryCredits.length ? totalIncome / divisor : 0)
+        || getMode(summaryData.map(m => toNum(m.main_income)));
+
+    const salaryPaymentDate = salaryCredits.map(tx => tx.date).filter(Boolean).sort().pop() || null;
+
+    return {
+        collectionId,
+        bankName: statement.customer?.bank || null,
+        customerName: statement.customer?.name || null,
+        capturedAt: new Date().toISOString(),
+        monthsCaptured,
+        totalIncome,
+        totalExpenses,
+        avgMonthlyIncome,
+        avgMonthlyExpenses,
+        netMonthlyIncome,
+        mainSalary,
+        salaryPaymentDate,
+        summaryData,
+        rawStatement: statement
+    };
+};
+
 // ROUTE 1: Initiate a TruID collection
 // Client POSTs: { name, idNumber, email?, mobile? }
 // Returns: { success, collectionId, consumerUrl }
@@ -381,6 +493,27 @@ app.post('/api/truid/initiate', async (req, res) => {
         });
 
         const result = await truidClient.createCollection({ name, idNumber, email, mobile, services });
+
+        try {
+            await persistTruIDCollection({
+                collection_id: result.collectionId,
+                user_id: normalizeUuid(req.body?.userId),
+                application_id: req.body?.applicationId || null,
+                consent_id: result.consentId || null,
+                consumer_url: result.consumerUrl || null,
+                status: 'INITIATED',
+                normalized_status: 'INITIATED',
+                correlation: {
+                    source: 'api/truid/initiate',
+                    candidateUrls: result.candidateUrls || null
+                },
+                collection_payload: result.data || null,
+                capture_attempts: 0,
+                last_error: null
+            });
+        } catch (persistError) {
+            console.error('[TruID initiate persistence error]', persistError.message || persistError);
+        }
 
         console.log('[TruID initiate response]', {
             elapsedMs: Date.now() - start,
@@ -418,15 +551,20 @@ app.get('/api/truid/status', async (req, res) => {
         const result = await truidClient.getCollection(collectionId);
         const d = result.data || {};
 
-        // TruID returns status in multiple possible shapes — normalise them all
-        const statusNode = d.status || d.current_status;
-        const fromStatuses = (() => {
-            if (!Array.isArray(d.statuses) || !d.statuses.length) return null;
-            const sorted = [...d.statuses].sort((a, b) => Date.parse(b.time || b.created || 0) - Date.parse(a.time || a.created || 0));
-            const s = sorted[0];
-            return s.code || s.status || s.state || null;
-        })();
-        const currentStatus = statusNode?.code || statusNode || d.state || fromStatuses || 'UNKNOWN';
+        const currentStatus = parseTruIDStatus(d);
+
+        try {
+            await persistTruIDCollection({
+                collection_id: collectionId,
+                status: currentStatus,
+                normalized_status: currentStatus,
+                collection_payload: d,
+                correlation: { source: 'api/truid/status' },
+                last_error: null
+            });
+        } catch (persistError) {
+            console.error('[TruID status persistence error]', persistError.message || persistError);
+        }
 
         return res.json({ success: true, collectionId, currentStatus, raw: d });
     } catch (err) {
@@ -446,74 +584,51 @@ app.post('/api/truid/capture', async (req, res) => {
     try {
         const result = await truidClient.getCollectionData(collectionId);
         const payload = result.data || {};
-        const statement = payload.statement || {};
-        const summaryData = statement.summaryData || [];
-        const accounts = statement.accounts || [];
-        const transactions = accounts[0]?.transactions || [];
+        const snapshot = buildTruIDSnapshot(collectionId, payload);
 
-        // Helper: safely convert to number
-        const toNum = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
+        try {
+            const { data: existing, error: existingError } = await supabaseService
+                .from('truid_collections')
+                .select('capture_attempts')
+                .eq('collection_id', collectionId)
+                .maybeSingle();
 
-        // Helper: get statistical mode from array of positive numbers (finds most-common salary amount)
-        const getMode = (vals) => {
-            const counts = new Map();
-            vals.forEach(v => { const k = toNum(v); if (k > 0) counts.set(k, (counts.get(k) || 0) + 1); });
-            if (!counts.size) return null;
-            return Number([...counts.entries()].sort((a, b) => b[1] - a[1])[0][0]);
-        };
+            if (existingError) {
+                throw existingError;
+            }
 
-        const monthsCaptured = summaryData.length || toNum(statement.summaries) || 0;
-        const divisor = monthsCaptured || 1;
+            const captureAttempts = Number(existing?.capture_attempts || 0) + 1;
 
-        const totalIncome = summaryData.length
-            ? summaryData.reduce((s, m) => s + toNum(m.total_income), 0)
-            : toNum(statement.income);
+            await persistTruIDCollection({
+                collection_id: collectionId,
+                status: 'CAPTURED',
+                normalized_status: 'CAPTURED',
+                verified: true,
+                summary_payload: payload,
+                captured_at: new Date().toISOString(),
+                capture_attempts: captureAttempts,
+                correlation: { source: 'api/truid/capture' },
+                last_error: null
+            });
+        } catch (persistError) {
+            console.error('[TruID capture persistence error]', persistError.message || persistError);
+        }
 
-        const totalExpenses = summaryData.length
-            ? summaryData.reduce((s, m) => s + toNum(m.total_expenses), 0)
-            : toNum(statement.expenses);
-
-        const avgMonthlyIncome = totalIncome / divisor;
-        const avgMonthlyExpenses = totalExpenses / divisor;
-        const netMonthlyIncome = avgMonthlyIncome - avgMonthlyExpenses;
-
-        // Detect salary: credits whose description or category contains "salary"
-        const salaryCredits = transactions.filter(tx => {
-            const isCreditType = String(tx.type || '').toLowerCase() === 'credit';
-            const hasSalaryText = ['description', 'category_two', 'category_three']
-                .some(f => String(tx[f] || '').toLowerCase().includes('salary'));
-            return isCreditType && hasSalaryText;
-        });
-
-        // Main salary = mode of monthly salary amounts (most recurring value = likely primary salary)
-        const mainSalary = getMode(salaryCredits.map(tx => toNum(tx.amount)))
-            || (salaryCredits.length ? totalIncome / divisor : 0)
-            || getMode(summaryData.map(m => toNum(m.main_income)));
-
-        const salaryPaymentDate = salaryCredits.map(tx => tx.date).filter(Boolean).sort().pop() || null;
-
-        const snapshot = {
-            collectionId,
-            bankName: statement.customer?.bank || null,
-            customerName: statement.customer?.name || null,
-            capturedAt: new Date().toISOString(),
-            monthsCaptured,
-            totalIncome,
-            totalExpenses,
-            avgMonthlyIncome,
-            avgMonthlyExpenses,
-            netMonthlyIncome,
-            mainSalary,
-            salaryPaymentDate,
-            summaryData,
-            rawStatement: statement
-        };
-
-        // TODO: persist `snapshot` to your database here (e.g. INSERT INTO bank_statements ...)
         console.log('[TruID] Captured snapshot for', collectionId, snapshot);
 
         return res.status(201).json({ success: true, collectionId, snapshot });
     } catch (err) {
+        try {
+            await persistTruIDCollection({
+                collection_id: collectionId,
+                status: 'CAPTURE_FAILED',
+                normalized_status: 'CAPTURE_FAILED',
+                last_error: err.message || String(err)
+            });
+        } catch (persistError) {
+            console.error('[TruID capture failure persistence error]', persistError.message || persistError);
+        }
+
         console.error('[TruID capture error]', err.message);
         return res.status(err.status || 500).json({ success: false, error: err.message });
     }
@@ -524,8 +639,73 @@ app.post('/api/truid/webhook', async (req, res) => {
     try {
         const body = req.body || {};
         const collectionId = body.collectionId || body.collection_id || body.id;
+        const statusFromWebhook = parseTruIDStatus(body);
         console.log('[TruID Webhook] Received:', collectionId, body);
-        // In production, trigger getCollectionData + persist here
+
+        if (!collectionId) {
+            return res.status(200).json({ success: true, ignored: true, reason: 'No collectionId in webhook payload' });
+        }
+
+        try {
+            await persistTruIDCollection({
+                collection_id: collectionId,
+                status: statusFromWebhook,
+                normalized_status: statusFromWebhook,
+                collection_payload: body,
+                correlation: { source: 'api/truid/webhook' },
+                last_error: null
+            });
+        } catch (persistError) {
+            console.error('[TruID webhook persistence error]', persistError.message || persistError);
+        }
+
+        if (isTruIDCompleteStatus(statusFromWebhook)) {
+            try {
+                const result = await truidClient.getCollectionData(collectionId);
+                const payload = result.data || {};
+
+                const { data: existing, error: existingError } = await supabaseService
+                    .from('truid_collections')
+                    .select('capture_attempts')
+                    .eq('collection_id', collectionId)
+                    .maybeSingle();
+
+                if (existingError) {
+                    throw existingError;
+                }
+
+                const captureAttempts = Number(existing?.capture_attempts || 0) + 1;
+
+                await persistTruIDCollection({
+                    collection_id: collectionId,
+                    status: 'CAPTURED',
+                    normalized_status: 'CAPTURED',
+                    verified: true,
+                    summary_payload: payload,
+                    captured_at: new Date().toISOString(),
+                    capture_attempts: captureAttempts,
+                    correlation: {
+                        source: 'api/truid/webhook',
+                        webhookStatus: statusFromWebhook,
+                        autoCaptured: true
+                    },
+                    last_error: null
+                });
+            } catch (captureError) {
+                console.error('[TruID webhook auto-capture error]', captureError.message || captureError);
+                try {
+                    await persistTruIDCollection({
+                        collection_id: collectionId,
+                        status: 'CAPTURE_FAILED',
+                        normalized_status: 'CAPTURE_FAILED',
+                        last_error: captureError.message || String(captureError)
+                    });
+                } catch (persistError) {
+                    console.error('[TruID webhook capture failure persistence error]', persistError.message || persistError);
+                }
+            }
+        }
+
         return res.status(200).json({ success: true });
     } catch (error) {
         console.error('[TruID webhook error]', error.message);
