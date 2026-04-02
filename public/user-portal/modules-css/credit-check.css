@@ -279,13 +279,16 @@
 
 .credit-check-right-section {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: center;
+  padding-top: 0.5rem;
 }
 
 .credit-check-right-section .credit-circle-outer {
   width: 100%;
-  min-height: 100%;
+  min-height: auto;
+  height: auto;
+  justify-content: flex-start;
 }
 
 #start-credit-check-btn {
